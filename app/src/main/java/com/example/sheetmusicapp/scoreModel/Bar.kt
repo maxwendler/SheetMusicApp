@@ -42,7 +42,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
          */
         fun makeEmpty(barNr: Int, timeSignature: TimeSignature): Bar {
 
-            var remainingBarUnits = timeSignature.toUnits()
+            var remainingBarUnits = timeSignature.units
             val voiceOfRests = mutableListOf<RhythmicInterval>()
 
             // Add rests the voice until no units remain in the bar.

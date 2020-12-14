@@ -8,11 +8,14 @@ import java.lang.IllegalStateException
  *
  * @property numerator
  * @property denominator
+ * @property numberOfSubGroups in which a bar of this time signature should be divided into. Can be 1, 2 or null.
+ * @property units Amount of smallest rhytmical lengths this app uses (1/48) in a bar of this time signature.
  * @throws IllegalArgumentException When an instance is constructed with properties of a time signature not supported.
  * @author Max Wendler
  */
 class TimeSignature(val numerator: Int, val denominator: Int) {
 
+    val numberOfSubgroups : Int?
     init {
         if (denominator !in listOf(2, 4, 8)){
             throw IllegalArgumentException("Only denominators 2, 4 and 8 are supported.")
@@ -22,32 +25,15 @@ class TimeSignature(val numerator: Int, val denominator: Int) {
                 throw java.lang.IllegalArgumentException("For the denominator 8 only have a numerators from 1 to 12 are supported.")
             }
         }
-    }
 
-    /**
-     * @return The rhythmic length of one bar of this time signature in the smallest units used in the app (48 per whole note).
-     */
-    fun toUnits() : Int {
-        return numerator * (48 / denominator)
-    }
-
-    /**
-     * Maps the time signature to a number of subgroups a bar of this time signature should be divided into visually.
-     *
-     * @return The according number of subgroups, or null if the bar should have no subgroups.
-     */
-    fun toNumberOfSubGroups() : Int? {
         when (denominator){
-            2 -> return denominator * numerator
-            4 -> return numerator
+            2 -> numberOfSubgroups = numerator * denominator
+            4 -> numberOfSubgroups = numerator
             8 -> {
-                if (numerator < 1 || numerator > 12){
-                    throw IllegalStateException()
-                }
                 when (numerator){
-                    in listOf(1,2,3) -> return 1
-                    in listOf(4,6) -> return 2
-                    else -> return null
+                    in listOf(1,2,3) -> numberOfSubgroups =1
+                    in listOf(4,6) -> numberOfSubgroups = 2
+                    else -> numberOfSubgroups = null
                 }
             }
             else -> {
@@ -55,4 +41,6 @@ class TimeSignature(val numerator: Int, val denominator: Int) {
             }
         }
     }
+
+    val units: Int = numerator * (48 / denominator)
 }
