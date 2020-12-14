@@ -83,5 +83,4 @@ class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteH
             return RhythmicInterval(length, mapOf<Int, NoteHeadType>())
         }
     }
-
 }

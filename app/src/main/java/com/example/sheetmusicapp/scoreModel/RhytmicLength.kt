@@ -76,19 +76,4 @@ class RhythmicLength(var basicLength: BasicRhythmicLength) {
         }
         return this
     }
-
-    companion object {
-        /**
-         * Calculates the length of a bar of a given time signature (in form of an integer fraction) in units.
-         *
-         * @param numerator
-         * @param denominator
-         * @throws IllegalArgumentException When another denominator than 2, 4 or 8 is used. Others are not supported by the app.
-         * @return Length of a bar of the given time signature in units.
-         */
-        fun timeFractionIntoUnits(numerator: Int, denominator: Int) : Int {
-            if (denominator !in listOf(2, 4, 8)) throw IllegalArgumentException("Only denominators 2, 4, and 8 are allowed!")
-            else return numerator * (48 / denominator)
-        }
-    }
 }

@@ -25,7 +25,7 @@ val restLengthsForEmptyBars : List<RhythmicLength> = listOf(
  * @constructor Creates a bar which contains the given voices, with the given time signature and bar number.
  * @author Max Wendler
  */
-class Bar(var barNr: Int, var timeSignature: Pair<Int,Int>, initVoices: Map<Int,MutableList<RhythmicInterval>>) {
+class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,MutableList<RhythmicInterval>>) {
 
     val voices = initVoices.toMutableMap()
 
@@ -38,10 +38,14 @@ class Bar(var barNr: Int, var timeSignature: Pair<Int,Int>, initVoices: Map<Int,
          * @param timeSignature The time signature of the bar, which will be filled with rests.
          * @return The "empty" bar instance full of rests.
          * @throws IllegalStateException When filling the bar went wrong, and no rhythmic length could eventually fill the bar of time signature.
+         * Will happen because of missing rhytmic lengths in restLengthsForEmpty bars or not supported time signatures.
          */
-        fun makeEmpty(barNr: Int, timeSignature: Pair<Int, Int>): Bar {
-            var remainingBarUnits = RhythmicLength.timeFractionIntoUnits(timeSignature.first, timeSignature.second)
+        fun makeEmpty(barNr: Int, timeSignature: TimeSignature): Bar {
+
+            var remainingBarUnits = timeSignature.toUnits()
             val voiceOfRests = mutableListOf<RhythmicInterval>()
+
+            // Add rests the voice until no units remain in the bar.
             while (remainingBarUnits > 0){
                 for (i in 0..restLengthsForEmptyBars.size){
                     val currentRestLength = restLengthsForEmptyBars[i]
