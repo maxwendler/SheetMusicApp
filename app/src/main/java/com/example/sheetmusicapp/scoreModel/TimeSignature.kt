@@ -8,7 +8,7 @@ import java.lang.IllegalStateException
  *
  * @property numerator
  * @property denominator
- * @property numberOfSubGroups in which a bar of this time signature should be divided into. Can be 1, 2 or null.
+ * @property numberOfSubgroups in which a bar of this time signature should be divided into. Can be 1, 2 or null.
  * @property units Amount of smallest rhytmical lengths this app uses (1/48) in a bar of this time signature.
  * @throws IllegalArgumentException When an instance is constructed with properties of a time signature not supported.
  * @author Max Wendler
@@ -31,7 +31,6 @@ class TimeSignature(val numerator: Int, val denominator: Int) {
             4 -> numberOfSubgroups = numerator
             8 -> {
                 when (numerator){
-                    in listOf(1,2,3) -> numberOfSubgroups =1
                     in listOf(4,6) -> numberOfSubgroups = 2
                     else -> numberOfSubgroups = null
                 }
@@ -43,4 +42,5 @@ class TimeSignature(val numerator: Int, val denominator: Int) {
     }
 
     val units: Int = numerator * (48 / denominator)
+    val subGroupUnits : Int? = if (numberOfSubgroups != null) units / numberOfSubgroups else null
 }

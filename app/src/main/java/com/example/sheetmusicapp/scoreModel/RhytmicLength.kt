@@ -52,7 +52,7 @@ class RhythmicLength(var basicLength: BasicRhythmicLength) {
      */
     fun toggleTriplet(): RhythmicLength {
         if (isTriplet) lengthInUnits = (lengthInUnits * 1.5).toInt()
-        else lengthInUnits *= 2/3
+        else lengthInUnits = (lengthInUnits * 2 /3.0).toInt()
 
         isTriplet = !isTriplet
 
@@ -69,7 +69,7 @@ class RhythmicLength(var basicLength: BasicRhythmicLength) {
         if (basicLength == BasicRhythmicLength.SIXTEENTH) {
             throw IllegalStateException("Dotted (triplet) sixteenth notes should be disabled.")
         } else {
-            if (isDotted) lengthInUnits *= 2 / 3
+            if (isDotted) lengthInUnits = (lengthInUnits * 2/3.0).toInt()
             else lengthInUnits = (lengthInUnits * 1.5).toInt()
 
             isDotted = !isDotted

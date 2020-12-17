@@ -11,7 +11,7 @@ package com.example.sheetmusicapp.scoreModel
  */
 class Score(bars: List<Bar>, var title: String = "Title") {
 
-    val barList = mutableListOf(bars)
+    val barList = bars.toMutableList()
     var length = bars.size
 
     companion object {

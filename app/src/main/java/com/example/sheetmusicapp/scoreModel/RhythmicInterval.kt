@@ -16,12 +16,14 @@ enum class NoteHeadType{
  *
  * @property length The rhythmic length of the instance. The referenced instance can be changed later, the reference can not.
  * @property noteHeads Map of notes of this rhythmic interval.
+ * @property startUnit Current starting position of an interval instance in a voice of an instance of [Bar].
+ * @property widthPercent Percentage of width of an UI interval instance the RhythmicInterval instance should cover, for precomputation.
  * @property isRest Boolean determining if the interval is viewed as a rest or not.
  * @constructor Creates an instance of the given length with the given notes: (key:height, val:note head type).
  * Note height must be between 0 and 12. Will be represent a rest if empty map is given.
  * @author Max Wendler
  */
-class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteHeadType>) {
+class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteHeadType>, var startUnit: Int, var widthPercent: Double) {
     private val noteHeads = initNoteHeads.toMutableMap()
     // Initialize as rest if constructed without notes.
     var isRest = noteHeads.isEmpty()
@@ -79,8 +81,8 @@ class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteH
          * @param length The rhythmic length the rest to be created shall have.
          * @return Rest RhythmicInterval instance of specified length.
          */
-        fun makeRest(length: RhythmicLength): RhythmicInterval {
-            return RhythmicInterval(length, mapOf<Int, NoteHeadType>())
+        fun makeRest(length: RhythmicLength, startUnit: Int, widthPercent: Double): RhythmicInterval {
+            return RhythmicInterval(length, mapOf<Int, NoteHeadType>(), startUnit, widthPercent)
         }
     }
 }
