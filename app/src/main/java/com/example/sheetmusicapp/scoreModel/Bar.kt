@@ -16,8 +16,11 @@ val restLengthsForEmptyBars : List<RhythmicLength> = listOf(
         RhythmicLength(BasicRhythmicLength.EIGHTH)
 )
 
+// Constant specifying the combined percentage of width of the padding elements on the right and the left of a UI bar.
 const val BAR_LEFTRIGHT_PADDING_PERCENT = 10
+// Constant specifying the combined percentage of width of the padding elements between the subgroups of a UI bar.
 const val BAR_SUBGROUP_PADDING_PERCENT = 10
+// Constant specifying the combined percentage of width of all notes, depending on the padding fractions.
 const val BAR_NOTES_PERCENT = 100 - BAR_LEFTRIGHT_PADDING_PERCENT - BAR_SUBGROUP_PADDING_PERCENT
 
 /**
@@ -59,7 +62,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
         // Bars of some kinds of time signatures don't have subgroups, so there's no need for subgroup padding.
         if (unitsPerSubgroup != null && numberOfSubgroups != null){
 
-            // Calculate difference in subgroups by cutting off remainders when mapping each subgroup to an interval 0.0 to 1.0, 1.0 to 2.0, ... (division by unitsPerSubgroup)
+            // Calculate difference in subgroups by cutting off remainders when mapping each subgroup to an interval 0.0 to 0.999.., 1.0 to 1.999.., ... (division by unitsPerSubgroup)
             val subgroupDifference = ((endUnit - 1)/ unitsPerSubgroup) - ((startUnit - 1)/ unitsPerSubgroup)
             // There's one less padding element than there are subgroups.
             subgroupPaddingWidthPercent = ((subgroupDifference / (numberOfSubgroups - 1).toDouble()) * BAR_SUBGROUP_PADDING_PERCENT)
@@ -96,8 +99,11 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
         }
         else {
             // Get first unit after the currently last interval.
-            val lastInterval = voiceIntervals.last()
-            val startUnit = lastInterval.startUnit + lastInterval.length.lengthInUnits
+            var startUnit = 0
+            val lastInterval = voiceIntervals.lastOrNull()
+            if (lastInterval != null){
+                startUnit = lastInterval.startUnit + lastInterval.length.lengthInUnits
+            }
 
             if (startUnit > timeSignature.units) {
                 throw IllegalArgumentException("The start unit exceeds the length of the bar in units.")
@@ -112,7 +118,6 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
             val interval = RhythmicInterval(length, initNoteHeads, startUnit, widthPercentOfRhythmicLength(length, startUnit))
             voiceIntervals.add(interval)
         }
-
     }
 
     companion object {
