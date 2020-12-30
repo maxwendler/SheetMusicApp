@@ -20,7 +20,7 @@ enum class NoteHeadType{
  * @property widthPercent Percentage of width of an UI interval instance the RhythmicInterval instance should cover, for precomputation.
  * @property isRest Boolean determining if the interval is viewed as a rest or not.
  * @constructor Creates an instance of the given length with the given notes: (key:height, val:note head type).
- * Note height must be between 0 and 12. Will be represent a rest if empty map is given.
+ * Note height must be between 0 and 12. Will represent a rest if empty map is given.
  * @author Max Wendler
  */
 class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteHeadType>, var startUnit: Int, var widthPercent: Double) {
