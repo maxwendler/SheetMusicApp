@@ -15,8 +15,7 @@
             {
               "length": {
                 "basic":      "WHOLE",
-                "isDotted":   true,
-                "isTriplet":  false
+                "modifier":   "TRIPLET"
               },
               "widthPercent": 90.0,
               "startUnit":    0,
