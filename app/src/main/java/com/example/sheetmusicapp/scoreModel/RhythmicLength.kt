@@ -1,5 +1,6 @@
 package com.example.sheetmusicapp.scoreModel
 
+import java.lang.IllegalArgumentException
 import java.lang.IllegalStateException
 
 /**
@@ -12,6 +13,12 @@ enum class BasicRhythmicLength{
     QUARTER,
     HALF,
     WHOLE
+}
+
+enum class LengthModifier{
+    DOTTED,
+    TRIPLET,
+    NONE
 }
 
 /**
@@ -28,83 +35,107 @@ val basicRhythmicLengthsInUnits: Map<BasicRhythmicLength, Int> = mapOf(
 
 /**
  * List of all rhythmic length instances that can exist in the app.
- * Currently only used in [lengthsFromUnitLength].
+ * Currently only used in [lengthsFromUnitLengthAsc].
  */
 val allRhythmicLengthsOrderedDesc : List<RhythmicLength> = listOf(
-    RhythmicLength(BasicRhythmicLength.WHOLE).toggleDotted(),       // 72 units
-    RhythmicLength(BasicRhythmicLength.WHOLE),                      // 48
-    RhythmicLength(BasicRhythmicLength.HALF).toggleDotted(),        // 36
-    RhythmicLength(BasicRhythmicLength.WHOLE).toggleTriplet(),      // 32
-    RhythmicLength(BasicRhythmicLength.HALF),                       // 24
-    RhythmicLength(BasicRhythmicLength.QUARTER).toggleDotted(),     // 18
-    RhythmicLength(BasicRhythmicLength.HALF).toggleTriplet(),       // 16
-    RhythmicLength(BasicRhythmicLength.QUARTER),                    // 12
-    RhythmicLength(BasicRhythmicLength.EIGHTH).toggleDotted(),      // 9
-    RhythmicLength(BasicRhythmicLength.QUARTER).toggleTriplet(),    // 8
-    RhythmicLength(BasicRhythmicLength.EIGHTH),                     // 6
-    RhythmicLength(BasicRhythmicLength.EIGHTH).toggleTriplet(),     // 4
-    RhythmicLength(BasicRhythmicLength.SIXTEENTH),                  // 3
-    RhythmicLength(BasicRhythmicLength.SIXTEENTH).toggleTriplet()   // 2
+    RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.DOTTED),       // 72 units
+    RhythmicLength(BasicRhythmicLength.WHOLE),                              // 48
+    RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED),        // 36
+    RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.TRIPLET),      // 32
+    RhythmicLength(BasicRhythmicLength.HALF),                               // 24
+    RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED),     // 18
+    RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.TRIPLET),       // 16
+    RhythmicLength(BasicRhythmicLength.QUARTER),                            // 12
+    RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED),      // 9
+    RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.TRIPLET),    // 8
+    RhythmicLength(BasicRhythmicLength.EIGHTH),                             // 6
+    RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.TRIPLET),     // 4
+    RhythmicLength(BasicRhythmicLength.SIXTEENTH),                          // 3
+    RhythmicLength(BasicRhythmicLength.SIXTEENTH, LengthModifier.TRIPLET)   // 2
 )
 
 /**
  * Class of which the instances can be any kind of supported rhythmic length.
  *
  * @property basicLength Basic length type on which the potentially modified length instance is based on.
- * @property isDotted Boolean representing if the length is modified by a dot (length * 1.5). Can only be (un)set via [toggleDotted].
- * @property isTriplet Boolean representing if the note is a triplet note (length * 2/3). Can only be (un)set via [toggleTriplet]
+ * @property lengthModifier Type of length modifier (dotted or triplet) the instance has.
  * @property lengthInUnits Length of the instance in units, where 1 unit = 1/48 rhythmically.
- * @constructor Creates an unmodified (no triplet / dotted note) instance with the length of the basic length type.
  * @throws IllegalStateException When a given BasicRhytmicLength instance has no mapped value in units in basicRhytmicLengthsInUnits.
  * @author Max Wendler
  */
-class RhythmicLength(val basicLength: BasicRhythmicLength) {
+class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: LengthModifier = LengthModifier.NONE) {
 
-    var isDotted = false
+    var basicLength = initBasicLength
         private set
 
-    var isTriplet = false
+    var lengthModifier = initLengthModifier
         private set
 
+    // initialize length in unit to basic length; modification in init block below
     var lengthInUnits : Int = basicRhythmicLengthsInUnits[basicLength]
             ?: throw IllegalStateException("Given basic length parameter has no mapped length in units in basicRhyhtmicLengthsInUnits")
         private set
 
-    /**
-     * Makes the length instance a triplet note, if it isn't, and vice versa.
-     *
-     * @return Returns the modified instance.
-     */
-    fun toggleTriplet(): RhythmicLength {
-        if (isDotted){
-            throw IllegalStateException("Dotted triplet notes should be disabled")
+    init {
+        // Modification of length in units, if a non-NONE modifier is given.
+        when (lengthModifier){
+            LengthModifier.DOTTED -> {
+                if (basicLength == BasicRhythmicLength.SIXTEENTH){
+                    throw IllegalArgumentException("Dotted sixteenth notes should be disabled.")
+                }
+                lengthInUnits = (lengthInUnits * 1.5).toInt()
+            }
+            LengthModifier.TRIPLET -> {
+                lengthInUnits = (lengthInUnits * 2/3.toDouble()).toInt()
+            }
         }
-
-        if (isTriplet) lengthInUnits = (lengthInUnits * 1.5).toInt()
-        else lengthInUnits = (lengthInUnits * 2 /3.0).toInt()
-        isTriplet = !isTriplet
-
-        return this
     }
 
     /**
-     * Makes the length instance a dotted noted, if it isn't, and vice versa.
+     * Reconfigures the instance to represent another rhythmic length and returns it.
      *
-     * @return Returns the modified instance.
-     * @throws IllegalStateException When dotted (triplet) sixteenth notes shall be created. They are not supported by the app.
+     * @throws IllegalArgumentException When no actual change would occur with the given parameters. This function should not
+     * callable by an UI event in this way.
+     * @throws IllegalStateException When a [BasicRhythmicLength] was used that's not mapped in [basicRhythmicLengthsInUnits].
+     * @return [RhythmicLength]
      */
-    fun toggleDotted() : RhythmicLength {
-        if (isTriplet){
-            throw IllegalStateException("Dotted triplet notes should be disabled")
+    fun change(newLength: RhythmicLength) : RhythmicLength {
+
+        val newBasicLength = newLength.basicLength
+        val newLengthMod = newLength.lengthModifier
+
+        // Setting a new length if necessary & fault tolerance check against params that don't change the state.
+        if (newBasicLength != basicLength){
+            basicLength = newBasicLength
+        }
+        // length does not change
+        else {
+            // nothing changes
+            if (newLengthMod == lengthModifier){
+                throw IllegalArgumentException("This function should not be called when no actual change occurs.")
+            }
         }
 
-        if (basicLength == BasicRhythmicLength.SIXTEENTH) {
-            throw IllegalStateException("Dotted sixteenth notes should be disabled.")
-        }
+        // Reset lengthInUnits to (old or new) basic length (so modification does not need previous modifier state.)
+        lengthInUnits = basicRhythmicLengthsInUnits[basicLength]
+                ?: throw IllegalStateException("Given basic length parameter has no mapped length in units in basicRhyhtmicLengthsInUnits")
 
-        if (isDotted) lengthInUnits = (lengthInUnits * 2/3.0).toInt()
-        else lengthInUnits = (lengthInUnits * 1.5).toInt()
-        isDotted = !isDotted
+        // Set (old or new) length modifier and calculate new length in units.
+        // A new length in units is only calculated when actual changes occur, because
+        // "Both params == before state" is checked by IllegalArgumentException block above.
+        lengthModifier = newLengthMod
+        when (lengthModifier){
+            LengthModifier.DOTTED -> {
+                if (basicLength == BasicRhythmicLength.SIXTEENTH){
+                    throw IllegalArgumentException("Dotted sixteenth notes should be disabled.")
+                }
+                lengthInUnits = (lengthInUnits * 1.5).toInt()
+            }
+
+            LengthModifier.TRIPLET -> {
+                lengthInUnits = (lengthInUnits * 2/3.toDouble()).toInt()
+            }
+        }
 
         return this
     }
@@ -117,7 +148,7 @@ class RhythmicLength(val basicLength: BasicRhythmicLength) {
  * @param units A rhythmic length in units.
  * @throws IllegalStateException When the given length can't be filled with available RhythmicLength instances for some reason.
  */
-fun lengthsFromUnitLength(units: Int) : List<RhythmicLength>{
+fun lengthsFromUnitLengthAsc(units: Int) : MutableList<RhythmicLength>{
     val rhythmicLengths = mutableListOf<RhythmicLength>()
     var remainingUnits = units
     var idxOfLastFitting = 0
@@ -127,7 +158,7 @@ fun lengthsFromUnitLength(units: Int) : List<RhythmicLength>{
                 throw IllegalStateException("No rhythmic length fits the remaining units.")
             }
             val currentRhythmicLength = allRhythmicLengthsOrderedDesc[i]
-            if (currentRhythmicLength.lengthInUnits < remainingUnits){
+            if (currentRhythmicLength.lengthInUnits <= remainingUnits){
                 rhythmicLengths.add(currentRhythmicLength)
                 remainingUnits -= currentRhythmicLength.lengthInUnits
                 idxOfLastFitting = i
@@ -136,5 +167,5 @@ fun lengthsFromUnitLength(units: Int) : List<RhythmicLength>{
         }
     }
 
-    return rhythmicLengths
+    return rhythmicLengths.asReversed()
 }

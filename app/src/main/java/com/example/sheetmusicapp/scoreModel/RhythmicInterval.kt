@@ -15,18 +15,42 @@ enum class NoteHeadType{
  * Instances of RhythmicInterval are horizontal slices of a score voice. They can contain multiple notes in different vertical positions.
  *
  * @property length The rhythmic length of the instance. The referenced instance can be changed later, the reference can not.
+ * can be modified by the changeLength function, a copy of the instance is available via getLengthCopy.
  * @property noteHeads Map of notes of this rhythmic interval.
  * @property startUnit Current starting position of an interval instance in a voice of an instance of [Bar].
  * @property widthPercent Percentage of width of an UI interval instance the RhythmicInterval instance should cover, for precomputation.
  * @property isRest Boolean determining if the interval is viewed as a rest or not.
  * @constructor Creates an instance of the given length with the given notes: (key:height, val:note head type).
- * Note height must be between 0 and 12. Will represent a rest if empty map is given.
+ * Note height must be between 0 and 14. Will represent a rest if empty map is given.
  * @author Max Wendler
  */
-class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteHeadType>, var startUnit: Int, var widthPercent: Double) {
-    private val noteHeads = initNoteHeads.toMutableMap()
+class RhythmicInterval(private val length : RhythmicLength, initNoteHeads: Map<Int, NoteHeadType>, initStartUnit: Int, initWidthPercent: Double) {
+    val noteHeads = initNoteHeads.toMutableMap()
     // Initialize as rest if constructed without notes.
     var isRest = noteHeads.isEmpty()
+        private set
+
+    var startUnit = initStartUnit
+        set(value) {
+            endUnit = startUnit + (length.lengthInUnits - 1)
+            field = value
+        }
+
+    var endUnit = startUnit + (length.lengthInUnits - 1)
+        private set
+
+    var widthPercent = initWidthPercent
+        private set
+
+    fun setLength(newLength: RhythmicLength, newWidthPercent: Double) {
+        length.change(newLength)
+        endUnit = startUnit + (length.lengthInUnits - 1)
+        widthPercent = newWidthPercent
+    }
+
+    fun getLengthCopy() : RhythmicLength{
+        return RhythmicLength(length.basicLength, length.lengthModifier)
+    }
 
     /**
      * Adds a note to the interval. After adding, the interval instance won't represent a rest anymore.
@@ -36,7 +60,7 @@ class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteH
      * @throws IllegalArgumentException When height is less than 0 or larger than 12.
      */
     fun addNoteHead(height: Int, type: NoteHeadType){
-        if (0 > height || height > 12){
+        if (0 > height || height > 14){
             throw IllegalArgumentException("Height can't be less than 0 or larger than 12!")
         }
 
@@ -52,7 +76,7 @@ class RhythmicInterval(val length: RhythmicLength, initNoteHeads: Map<Int, NoteH
      * @throws IllegalArgumentException When no note exists on the given height.
      */
     fun removeNoteHead(height: Int){
-        if (0 > height || height > 12){
+        if (0 > height || height > 14){
             throw IllegalArgumentException("Height can't be less than 0 or larger than 12!")
         }
 

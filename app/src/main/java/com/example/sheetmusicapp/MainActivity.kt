@@ -18,8 +18,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
-        val exampleBar = Bar.makeEmpty(1, TimeSignature(5, 8))
+        val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
+        var exampleBar = Bar.makeEmpty(1, TimeSignature(5, 8))
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.ELLIPTIC, 6, 0)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 6, 0)
 
         // Set callback for resetting stroke widths of bar drawable after scaling.
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
@@ -84,7 +86,7 @@ class MainActivity : AppCompatActivity() {
                 notesConstraintSet.applyTo(notesConstraintLayout)
 
                 // Increase margin to left bar border according to width of added interval.
-                margin += ((interval.widthPercent / 100) * barWidth).toInt()
+                margin += ((interval.widthPercent * 0.01) * barWidth).toInt()
             }
         }
     }
