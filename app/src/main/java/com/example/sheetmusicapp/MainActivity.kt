@@ -9,25 +9,54 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import com.devs.vectorchildfinder.VectorChildFinder
+import com.example.sheetmusicapp.parser.ScoreDeserializer
+import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
+import com.google.gson.GsonBuilder
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
+    var parser = GsonBuilder()
+
+    private fun initParser() {
+        parser.registerTypeAdapter(Score::class.java, ScoreSerializer())
+        parser.registerTypeAdapter(Score::class.java, ScoreDeserializer())
+    }
+
+    fun saveToFile(name: String, json: String) {
+        try {
+            val file = File(applicationContext.getExternalFilesDir(null), name)
+            file.writeText(json)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        initParser()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
+        val exampleScore = Score.makeEmpty(bars = 3, timeSignature =  TimeSignature(4, 4))
         var exampleBar = Bar.makeEmpty(1, TimeSignature(5, 8))
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.ELLIPTIC, 6, 0)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 6, 0)
+        exampleScore.barList[0] = exampleBar
+
+//        val json = parser.setPrettyPrinting().create().toJson(exampleScore)
+//        saveToFile("test.txt", json)
+//        println(json)
+//        val test = parser.create().fromJson(json, Score::class.java)
+
+
 
         // Set callback for resetting stroke widths of bar drawable after scaling.
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
         mainConstraintLayout.doOnLayout {
             scaleBarLineStrokeWidth()
-            visualizeBarVoiceOne(exampleBar)
+            visualizeBarVoiceOne(exampleScore.barList[0])
         }
     }
 
