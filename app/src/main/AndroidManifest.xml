@@ -10,7 +10,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.SheetMusicApp">
         <activity android:name=".MainActivity"
-            android:screenOrientation="landscape">
+            android:screenOrientation="landscape"
+            android:configChanges="keyboardHidden|screenLayout|orientation|screenSize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

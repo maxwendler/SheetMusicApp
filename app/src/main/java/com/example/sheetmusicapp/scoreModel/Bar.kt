@@ -3,18 +3,7 @@ package com.example.sheetmusicapp.scoreModel
 import java.lang.IllegalArgumentException
 import java.lang.IllegalStateException
 
-// List of rhythmic lengths which can be rests to fill a new bar with rests.
-// Because the time signatures of bars can only have halfs, quarters or eighths as denominators, only certain
-// lengths are required here.
-val restLengthsForEmptyBars : List<RhythmicLength> = listOf(
-        RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.DOTTED),
-        RhythmicLength(BasicRhythmicLength.WHOLE),
-        RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED),
-        RhythmicLength(BasicRhythmicLength.HALF),
-        RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED),
-        RhythmicLength(BasicRhythmicLength.QUARTER),
-        RhythmicLength(BasicRhythmicLength.EIGHTH)
-)
+
 
 // Constant specifying the combined percentage of width of the padding elements on the right and the left of a UI bar.
 const val BAR_LEFTRIGHT_PADDING_PERCENT = 10
@@ -124,11 +113,24 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
      * @param voice Id of the voice to add.
      * @throws IllegalArgumentException when the specified voice already exists.
      */
-    private fun addEmptyVoice(voice : Int){
+    fun addEmptyVoice(voice : Int){
 
         if (voices[voice] != null){
             throw IllegalArgumentException("The given voice does already exist and should not be overwritten.")
         }
+
+        // List of rhythmic lengths which can be rests to fill a new bar with rests.
+        // Because the time signatures of bars can only have halfs, quarters or eighths as denominators, only certain
+        // lengths are required here.
+        val restLengthsForEmptyBars : List<RhythmicLength> = listOf(
+                RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.DOTTED),
+                RhythmicLength(BasicRhythmicLength.WHOLE),
+                RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED),
+                RhythmicLength(BasicRhythmicLength.HALF),
+                RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED),
+                RhythmicLength(BasicRhythmicLength.QUARTER),
+                RhythmicLength(BasicRhythmicLength.EIGHTH)
+        )
 
         val newVoiceIntervals = mutableListOf<RhythmicInterval>()
         var remainingBarUnits = timeSignature.units
