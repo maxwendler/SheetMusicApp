@@ -1,8 +1,6 @@
 package com.example.sheetmusicapp
 
-import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -10,20 +8,40 @@ import android.widget.Space
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
-import androidx.core.view.doOnAttach
 import androidx.core.view.doOnLayout
 import com.devs.vectorchildfinder.VectorChildFinder
+import com.example.sheetmusicapp.parser.ScoreDeserializer
+import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
 import java.lang.IllegalArgumentException
+import com.google.gson.GsonBuilder
+import java.io.File
 
 const val noteWidthToHeightRatio = 0.6031
 const val noteHeadHeightToTotalHeightRatio = 0.2741
 const val noteHeadWidthToNoteHeightRatio = 0.3474
 const val barStrokeWidthToBarHeightRatio = 0.0125
 
+
 class MainActivity : AppCompatActivity() {
+    var parser = GsonBuilder()
+
+    private fun initParser() {
+        parser.registerTypeAdapter(Score::class.java, ScoreSerializer())
+        parser.registerTypeAdapter(Score::class.java, ScoreDeserializer())
+    }
+
+    fun saveToFile(name: String, json: String) {
+        try {
+            val file = File(applicationContext.getExternalFilesDir(null), name)
+            file.writeText(json)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        initParser()
         super.onCreate(savedInstanceState)
 
         val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
@@ -32,12 +50,17 @@ class MainActivity : AppCompatActivity() {
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.ELLIPTIC, 0, 0)
         // exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 12, 0)
 
+//        val json = parser.setPrettyPrinting().create().toJson(exampleScore)
+//        saveToFile("test.txt", json)
+//        println(json)
+//        val test = parser.create().fromJson(json, Score::class.java)
+
         setContentView(R.layout.activity_main)
 
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.realMain)
         mainConstraintLayout.doOnLayout {
             scaleBarLineStrokeWidth()
-            visualizeBarVoiceOne(exampleBar)
+            visualizeBarVoiceOne(exampleScore.barList[0])
         }
     }
 
