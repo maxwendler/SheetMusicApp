@@ -16,6 +16,7 @@ import com.example.sheetmusicapp.scoreModel.*
 import java.lang.IllegalArgumentException
 import com.google.gson.GsonBuilder
 import java.io.File
+import java.lang.IllegalStateException
 
 const val noteWidthToHeightRatio = 0.6031
 const val noteHeadHeightToTotalHeightRatio = 0.2741
@@ -44,11 +45,10 @@ class MainActivity : AppCompatActivity() {
         initParser()
         super.onCreate(savedInstanceState)
 
-        val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
-        val exampleBar = Bar(1, TimeSignature(5, 8), mapOf())
-        exampleBar.addEmptyVoice(1)
+        // val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
+        val exampleBar = Bar.makeEmpty(1, TimeSignature(5, 8))
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.ELLIPTIC, 0, 0)
-        // exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 12, 0)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 12, 0)
 
 //        val json = parser.setPrettyPrinting().create().toJson(exampleScore)
 //        saveToFile("test.txt", json)
@@ -60,14 +60,14 @@ class MainActivity : AppCompatActivity() {
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.realMain)
         mainConstraintLayout.doOnLayout {
             scaleBarLineStrokeWidth()
-            visualizeBarVoiceOne(exampleScore.barList[0])
+            visualizeBarVoiceOne(exampleBar)
         }
     }
 
     /**
      * Sets the widths of all strokes of the bar drawable to be equal again, after they changed due to scaling.
      */
-    fun scaleBarLineStrokeWidth(){
+    fun scaleBarLineStrokeWidth() {
         val barImageView = findViewById<ImageView>(R.id.barImageView)
         val barDrawableChildFinder = VectorChildFinder(this, R.drawable.ic_bar, barImageView)
         val leftVertical = barDrawableChildFinder.findPathByName("leftVertical")
@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
     // Prototype function visualizing all intervals of voice "1" of the given bar. Prototype of view placement according to interval width.
     // Currently, one interval == one note view (an interval can have multiple note on multiple heights,
     // no height calculation for note views, eighth note image for intervals of all rhythmic lengths.
-    fun visualizeBarVoiceOne(bar: Bar){
+    fun visualizeBarVoiceOne(bar: Bar) {
 
         // Calculate height of all notes from bar height.
         val barImageView = findViewById<ImageView>(R.id.barImageView)
@@ -94,15 +94,14 @@ class MainActivity : AppCompatActivity() {
         val noteHeadWidth = (noteHeight * noteHeadWidthToNoteHeightRatio).toInt()
 
 
-        val voice1 : MutableList<RhythmicInterval>? = bar.voices[1]
-
-        if (voice1 != null){
+        val voice1 = bar.voices[1]
+        if (voice1 != null) {
             addVoiceNotesToBar(voice1, barWidth, barHeight, noteHeight, noteHeadWidth, barStrokeWidth)
         }
     }
 
     // bar height & width, noteImageHeight don't need to be actual parameters but a constant property that's assigned once when the app starts
-    fun addVoiceNotesToBar(voiceIntervals: List<RhythmicInterval>, barWidth: Int, barHeight: Int, noteImageHeight: Int, noteHeadWidth: Int, barStrokeWidth: Int){
+    fun addVoiceNotesToBar(voice: Voice, barWidth: Int, barHeight: Int, noteImageHeight: Int, noteHeadWidth: Int, barStrokeWidth: Int) {
 
         val constraintLayout = findViewById<ConstraintLayout>(R.id.notesConstraintLayout)
 
@@ -110,9 +109,9 @@ class MainActivity : AppCompatActivity() {
         // flipped notes get constrained to the top, so that the lowest margin creates notes above its highest line for those.
         val verticalMarginStep = barHeight / 8
         val lowestVerticalMargin = -(3 * verticalMarginStep)
-        var horizontalMargin = (barWidth * (BAR_LEFTRIGHT_PADDING_PERCENT * 0.01 / 2)).toInt()
+        var horizontalMargin = (barWidth * (BAR_LEFTRIGHT_PADDING_PERCENT / 2)).toInt()
 
-        for (interval in voiceIntervals){
+        for (interval in voice.intervals) {
 
             // Create new note image view and an id for it.
             val noteView = ImageView(this)
@@ -130,19 +129,19 @@ class MainActivity : AppCompatActivity() {
             //
             // later, multiple notes need to be visualized and connect their stems
             // rests, which have no notes heads, are currently put at center musical height.
-            val noteMusicalHeight : Int = interval.noteHeads.keys.lastOrNull() ?: 6
+            val noteMusicalHeight: Int = interval.getNoteHeadsCopy().keys.lastOrNull() ?: 6
 
-            if (noteMusicalHeight < 0 || noteMusicalHeight > 12){
+            if (noteMusicalHeight < 0 || noteMusicalHeight > 12) {
                 throw IllegalArgumentException("Height can't be less than 0 or larger than 12!")
             }
 
             // add note with upwards stem, note head constrained to bar bottom
-            if (noteMusicalHeight < 5){
+            if (noteMusicalHeight < 5) {
                 noteView.setImageResource(R.drawable.ic_eighth)
                 constraintSet.connect(noteView.id, ConstraintSet.LEFT, R.id.notesConstraintLayout, ConstraintSet.LEFT, horizontalMargin)
 
                 // note bottom needs to be aligned to something between bar bottom
-                if (noteMusicalHeight < 3){
+                if (noteMusicalHeight < 3) {
 
                     val stepsBelowBarBottom = 3 - noteMusicalHeight
                     val bottomDifferenceToBarBottom = stepsBelowBarBottom * verticalMarginStep
@@ -170,8 +169,7 @@ class MainActivity : AppCompatActivity() {
                         constraintSet.connect(optionalBottomStrokeView.id, ConstraintSet.LEFT, R.id.notesConstraintLayout, ConstraintSet.LEFT, horizontalMargin - (noteHeadWidth * 0.165).toInt())
                         constraintSet.connect(optionalBottomStrokeView.id, ConstraintSet.TOP, R.id.notesBottomGuideline, ConstraintSet.BOTTOM, 2 * verticalMarginStep - barStrokeWidth / 2)
                     }
-                }
-                else {
+                } else {
                     val marginBottomToBarBottom = lowestVerticalMargin + verticalMarginStep * noteMusicalHeight
                     constraintSet.connect(noteView.id, ConstraintSet.BOTTOM, R.id.notesBottomGuideline, ConstraintSet.TOP, marginBottomToBarBottom)
                 }
@@ -184,7 +182,7 @@ class MainActivity : AppCompatActivity() {
                 // this position + noteHeadWidth, to deal with note stem "appendages".
                 constraintSet.connect(noteView.id, ConstraintSet.RIGHT, R.id.notesConstraintLayout, ConstraintSet.RIGHT, barWidth - horizontalMargin - noteHeadWidth)
 
-                if (noteMusicalHeight > 9){
+                if (noteMusicalHeight > 9) {
 
                     val stepsAboveBarTop = 3 - (12 - noteMusicalHeight)
                     val topDifferenceToBarTop = stepsAboveBarTop * verticalMarginStep
@@ -199,7 +197,7 @@ class MainActivity : AppCompatActivity() {
                     constraintSet.connect(noteView.id, ConstraintSet.TOP, spaceView.id, ConstraintSet.TOP)
 
                     // Deal with lowest notes, which need to lie on a horizontal stroke.
-                    if (noteMusicalHeight == 12){
+                    if (noteMusicalHeight == 12) {
                         val optionalTopStrokeView = ImageView(this)
                         optionalTopStrokeView.id = View.generateViewId()
                         optionalTopStrokeView.scaleType = ImageView.ScaleType.FIT_XY
@@ -215,8 +213,7 @@ class MainActivity : AppCompatActivity() {
                         constraintSet.connect(optionalTopStrokeView.id, ConstraintSet.BOTTOM, R.id.notesTopGuideline, ConstraintSet.TOP, 2 * verticalMarginStep - barStrokeWidth / 2)
                     }
 
-                }
-                else {
+                } else {
                     val marginTopToBarTop = lowestVerticalMargin + verticalMarginStep * (12 - noteMusicalHeight)
                     constraintSet.connect(noteView.id, ConstraintSet.TOP, R.id.notesTopGuideline, ConstraintSet.BOTTOM, marginTopToBarTop)
                 }
@@ -225,8 +222,30 @@ class MainActivity : AppCompatActivity() {
 
             constraintSet.applyTo(constraintLayout)
             // Increase margin to left bar border according to width of added interval.
-            horizontalMargin += ((interval.widthPercent * 0.01) * barWidth).toInt()
-
+            val intervalSubGroupIdx = voice.getIntervalSubGroupIdxsCopy()[interval]
+            if (intervalSubGroupIdx != null){
+                val subGroups = voice.getCopyOfSubGroups()
+                if (intervalSubGroupIdx >= subGroups.size){
+                    throw IllegalStateException("A sub group index was assigned to an interval that exceeds the bar.")
+                }
+                val intervalSubGroup = voice.getCopyOfSubGroups()[intervalSubGroupIdx]
+                horizontalMargin += (barWidth * calculateWidthPercent(interval, intervalSubGroup, voice.timeSignature)).toInt()
+            }
+            else {
+                throw IllegalStateException("An interval has no assigned sub group in the voice's intervalSubGroupsIdxs!")
+            }
         }
+    }
+
+    // Calculates percentage of width an interval with following or included paddings takes up.
+    // Only widths of last intervals of sub groups get added padding.
+    private fun calculateWidthPercent(interval: RhythmicInterval, subGroup: SubGroup, timeSignature: TimeSignature): Double {
+        val barPercentWithoutPadding = BAR_NOTES_PERCENT - (timeSignature.numberOfSubGroups - 1) * WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT
+        val intervalPercentWithoutPadding = barPercentWithoutPadding * interval.getLengthCopy().lengthInUnits / timeSignature.units
+        var subGroupPaddingPercent = 0.0
+        if (subGroup.isLast(interval)) {
+            subGroupPaddingPercent = WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT * subGroup.paddingFactor
+        }
+        return intervalPercentWithoutPadding + subGroupPaddingPercent
     }
 }

@@ -33,26 +33,6 @@ val basicRhythmicLengthsInUnits: Map<BasicRhythmicLength, Int> = mapOf(
         BasicRhythmicLength.WHOLE to 48
 )
 
-/**
- * List of all rhythmic length instances that can exist in the app.
- * Currently only used in [lengthsFromUnitLengthAsc].
- */
-val allRhythmicLengthsOrderedDesc : List<RhythmicLength> = listOf(
-    RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.DOTTED),       // 72 units
-    RhythmicLength(BasicRhythmicLength.WHOLE),                              // 48
-    RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED),        // 36
-    RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.TRIPLET),      // 32
-    RhythmicLength(BasicRhythmicLength.HALF),                               // 24
-    RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED),     // 18
-    RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.TRIPLET),       // 16
-    RhythmicLength(BasicRhythmicLength.QUARTER),                            // 12
-    RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED),      // 9
-    RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.TRIPLET),    // 8
-    RhythmicLength(BasicRhythmicLength.EIGHTH),                             // 6
-    RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.TRIPLET),     // 4
-    RhythmicLength(BasicRhythmicLength.SIXTEENTH),                          // 3
-    RhythmicLength(BasicRhythmicLength.SIXTEENTH, LengthModifier.TRIPLET)   // 2
-)
 
 /**
  * Class of which the instances can be any kind of supported rhythmic length.
@@ -149,6 +129,25 @@ class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: L
  * @throws IllegalStateException When the given length can't be filled with available RhythmicLength instances for some reason.
  */
 fun lengthsFromUnitLengthAsc(units: Int) : MutableList<RhythmicLength>{
+
+    // List of all rhythmic length instances that can exist in the app.
+    val allRhythmicLengthsOrderedDesc : List<RhythmicLength> = listOf(
+            RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.DOTTED),       // 72 units
+            RhythmicLength(BasicRhythmicLength.WHOLE),                              // 48
+            RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED),        // 36
+            RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.TRIPLET),      // 32
+            RhythmicLength(BasicRhythmicLength.HALF),                               // 24
+            RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED),     // 18
+            RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.TRIPLET),       // 16
+            RhythmicLength(BasicRhythmicLength.QUARTER),                            // 12
+            RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED),      // 9
+            RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.TRIPLET),    // 8
+            RhythmicLength(BasicRhythmicLength.EIGHTH),                             // 6
+            RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.TRIPLET),     // 4
+            RhythmicLength(BasicRhythmicLength.SIXTEENTH),                          // 3
+            RhythmicLength(BasicRhythmicLength.SIXTEENTH, LengthModifier.TRIPLET)   // 2
+    )
+
     val rhythmicLengths = mutableListOf<RhythmicLength>()
     var remainingUnits = units
     var idxOfLastFitting = 0

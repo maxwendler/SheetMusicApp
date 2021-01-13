@@ -6,11 +6,10 @@ import java.lang.IllegalStateException
 
 
 // Constant specifying the combined percentage of width of the padding elements on the right and the left of a UI bar.
-const val BAR_LEFTRIGHT_PADDING_PERCENT = 10
-// Constant specifying the combined percentage of width of the padding elements between the subgroups of a UI bar.
-const val BAR_SUBGROUP_PADDING_PERCENT = 10
+const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.1
 // Constant specifying the combined percentage of width of all notes, depending on the padding fractions.
-const val BAR_NOTES_PERCENT = 100 - BAR_LEFTRIGHT_PADDING_PERCENT - BAR_SUBGROUP_PADDING_PERCENT
+const val BAR_NOTES_PERCENT = 1 - BAR_LEFTRIGHT_PADDING_PERCENT
+const val WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT = 0.025
 
 /**
  * Bar instances are the elements of a drum score. They have a certain time signature and consist of
@@ -18,52 +17,22 @@ const val BAR_NOTES_PERCENT = 100 - BAR_LEFTRIGHT_PADDING_PERCENT - BAR_SUBGROUP
  *
  * @property barNr The number of the bar in a score. Can change after creation.
  * @property timeSignature The time signature of the bar. Can change after creation.
- * @property voices Map of voices of rhythmic intervals in this bar.
+ * @property voices Map of voices of rhythmic intervals in this bar. [Voice] instances are created on construction
+ * from interval lists in param voiceIntervals. Only voices "1" to "4" can exist.
  * @constructor Creates a bar which contains the given voices, with the given time signature and bar number.
  * @author Max Wendler
  */
-class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,MutableList<RhythmicInterval>>) {
+class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<Int,MutableList<RhythmicInterval>>) {
 
-    val voices = initVoices.toMutableMap()
-
-    /**
-     * Calculates the percentage of width of an UI bar an interval UI object of [RhythmicLength] [length], based on its [startUnit] and the bar's [timeSignature].
-     *
-     * Private to ensure that interfaces of [Bar] can implement interval calculation which always
-     * precomputes the UI [RhythmicInterval.widthPercent] of RhytmicInterval instances.
-     */
-    private fun widthPercentOfRhythmicLength(length: RhythmicLength, startUnit: Int) : Double {
-
-        if (startUnit > timeSignature.units) {
-            throw IllegalArgumentException("The start unit exceeds the length of the bar in units.")
+    val voices: MutableMap<Int, Voice> = mutableMapOf()
+    // voice instantiation from voice intervals
+    init {
+        for (pair in voiceIntervals){
+            if (pair.key !in 1..4){
+                throw IllegalArgumentException("Faulty voice keys in constructor parameters. Only voices 1 to 4 can exist!")
+            }
+            voices[pair.key] = Voice(pair.value, timeSignature)
         }
-
-        val endUnit = startUnit + (length.lengthInUnits - 1)
-        if (endUnit > timeSignature.units){
-            throw IllegalArgumentException("The end unit exceeds the length of the bar in units.")
-        }
-
-        var subgroupPaddingWidthPercent : Double = 0.0
-        val noteWidthPercent : Double
-        val numberOfSubgroups = timeSignature.numberOfSubgroups
-        val unitsPerSubgroup = timeSignature.subGroupUnits
-
-        // Bars of some kinds of time signatures don't have subgroups, so there's no need for subgroup padding.
-        if (unitsPerSubgroup != null && numberOfSubgroups != null){
-
-            // Calculate difference in subgroups by cutting off remainders when mapping each subgroup to an interval 0.0 to 0.999.., 1.0 to 1.999.., ... (division by unitsPerSubgroup)
-            val subgroupDifference = ((endUnit - 1)/ unitsPerSubgroup) - ((startUnit - 1)/ unitsPerSubgroup)
-            // There's one less padding element than there are subgroups.
-            subgroupPaddingWidthPercent = ((subgroupDifference / (numberOfSubgroups - 1).toDouble()) * BAR_SUBGROUP_PADDING_PERCENT)
-            // Padding-independent width is specified by the contained fraction of a bar's units.
-            noteWidthPercent = ((length.lengthInUnits) * BAR_NOTES_PERCENT / timeSignature.units.toDouble())
-        }
-        else {
-            // Padding-independent width is specified by the contained fraction of a bar's units.
-            noteWidthPercent = (length.lengthInUnits) * (BAR_NOTES_PERCENT + BAR_SUBGROUP_PADDING_PERCENT) / timeSignature.units.toDouble()
-        }
-
-        return noteWidthPercent + subgroupPaddingWidthPercent
     }
 
     /**
@@ -100,7 +69,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
         }
 
         // Create and add interval with width from widthPercentOfRhythmicLength.
-        val interval = RhythmicInterval(length, initNoteHeads, startUnit, widthPercentOfRhythmicLength(length, startUnit))
+        val interval = RhythmicInterval(length, initNoteHeads.toMutableMap(), startUnit)
         voiceIntervals.add(interval)
     }
 
@@ -152,7 +121,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
             }
         }
 
-        voices[voice] = newVoiceIntervals
+        voices[voice] = Voice(newVoiceIntervals, timeSignature)
     }
 
     /**
@@ -164,30 +133,32 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
      * @throws IllegalArgumentException When the given rhythmic length exceeds the length of the bar's time signature when placed at the
      * position given by intervalIdx.
      */
-    fun addNote(voice: Int, length: RhythmicLength, type: NoteHeadType, height: Int, intervalIdx: Int){
+    fun addNote(voiceNum: Int, length: RhythmicLength, type: NoteHeadType, height: Int, intervalIdx: Int){
 
-        if (voices[voice] == null){
-            addEmptyVoice(voice)
+        if (voices[voiceNum] == null){
+            addEmptyVoice(voiceNum)
         }
 
-        val voiceIntervals = voices[voice]
-        if (voiceIntervals != null){
+        val voice = voices[voiceNum]
+        if (voice != null){
 
-            if (intervalIdx >= voiceIntervals.size){
+            if (intervalIdx >= voice.intervals.size){
                 throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
             }
 
-            val currentIntervalAtIdx = voiceIntervals[intervalIdx]
+            val currentIntervalAtIdx = voice.intervals[intervalIdx]
             if (currentIntervalAtIdx.getLengthCopy().lengthInUnits == length.lengthInUnits){
                 currentIntervalAtIdx.addNoteHead(height, type)
             }
             else if (currentIntervalAtIdx.getLengthCopy().lengthInUnits > length.lengthInUnits){
-                changeIntervalToSmaller(voiceIntervals, length, type, height, intervalIdx)
+                changeIntervalToSmaller(voice.intervals, length, type, height, intervalIdx)
             }
             // (currentIntervalAtIdx.length.lengthInUnits < length.lengthInUnits) == true
             else {
-                changeIntervalToLarger(voiceIntervals, length, type, height, intervalIdx)
+                changeIntervalToLarger(voice.intervals, length, type, height, intervalIdx)
             }
+
+            voice.recalculateSubGroupsFrom(intervalIdx)
         }
     }
 
@@ -205,14 +176,14 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
         val rhythmicLengthsForRemainder = lengthsFromUnitLengthAsc(unitLengthOfRemainder)
 
         // Change length and note head of the interval while keeping old note heads.
-        intervalAtIdx.setLength(length, widthPercentOfRhythmicLength(length, intervalAtIdx.startUnit))
+        intervalAtIdx.setLength(length)
         intervalAtIdx.addNoteHead(height, type)
 
         // insert intervals that are rests for the remaining rhythmic length after the replacing interval
         var insertRestIdx = intervalIdx + 1
         var insertRestStartUnit = voiceIntervals[intervalIdx].startUnit + length.lengthInUnits
         for (restLength in rhythmicLengthsForRemainder){
-            voiceIntervals.add(insertRestIdx, RhythmicInterval.makeRest(restLength, insertRestStartUnit, widthPercentOfRhythmicLength(restLength, insertRestStartUnit)))
+            voiceIntervals.add(insertRestIdx, RhythmicInterval.makeRest(restLength, insertRestStartUnit))
             insertRestIdx += 1
             insertRestStartUnit += restLength.lengthInUnits
         }
@@ -259,14 +230,14 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
             // Shorten the length of the already existing interval.
             cutInTwoInterval.startUnit = newStartUnit
             val newCutInTwoLength = remainderLengths.removeAt(0)
-            cutInTwoInterval.setLength(newCutInTwoLength, widthPercentOfRhythmicLength(newCutInTwoLength, newStartUnit))
+            cutInTwoInterval.setLength(newCutInTwoLength)
 
             // Add following rests if the units remaining of the original shortened interval can be only expressed in multiple rhythmic lengths,
             // and therefore intervals.
             newStartUnit += cutInTwoInterval.getLengthCopy().lengthInUnits
             var newRestIdx = lastReplacedIdx + 1
             for (newRestLength in remainderLengths){
-                voiceIntervals.add(newRestIdx, RhythmicInterval.makeRest(newRestLength, newStartUnit, widthPercentOfRhythmicLength(newRestLength, newStartUnit)))
+                voiceIntervals.add(newRestIdx, RhythmicInterval.makeRest(newRestLength, newStartUnit))
                 newStartUnit += newRestLength.lengthInUnits
                 newRestIdx++
             }
@@ -274,14 +245,13 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, initVoices: Map<Int,
         }
 
         // Change length of the interval that gets larger.
-        intervalAtIdx.setLength(length, widthPercentOfRhythmicLength(length, intervalAtIdx.startUnit))
+        intervalAtIdx.setLength(length)
         intervalAtIdx.addNoteHead(height, type)
 
         // Remove intervals fully swallowed by the grown interval.
         for (i in (intervalIdx+1)..lastReplacedIdx){
             voiceIntervals.removeAt(intervalIdx + 1)
         }
-
     }
 
     companion object {

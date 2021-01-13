@@ -15,18 +15,18 @@ class ScoreSerializer: JsonSerializer<Score> {
         val barDataList = mutableListOf<BarData>()
         barList.forEach{ bar ->
             val timeSignatureData = TimeSignatureData(bar.timeSignature.numerator, bar.timeSignature.denominator)
-            val voiceList = mutableMapOf<Int, MutableList<RhythmicIntervalData>>()
+            val voiceIntervalsList = mutableMapOf<Int, MutableList<RhythmicIntervalData>>()
             bar.voices.forEach{ elem ->
                 val intervalData = mutableListOf<RhythmicIntervalData>()
-                elem.value.forEach{
-                    val length = RhythmicLengthData(it.length.basicLength, it.length.lengthModifier)
-                    intervalData.add(RhythmicIntervalData(length, it.noteHeads, it.startUnit, it.widthPercent))
+                elem.value.intervals.forEach{
+                    val length = RhythmicLengthData(it.getLengthCopy().basicLength, it.getLengthCopy().lengthModifier)
+                    intervalData.add(RhythmicIntervalData(length, it.getNoteHeadsCopy(), it.startUnit))
                 }
-                voiceList[elem.key] = intervalData
+                voiceIntervalsList[elem.key] = intervalData
             }
             val data = BarData(bar.barNr,
                     timeSignatureData,
-                    voiceList
+                    voiceIntervalsList
             )
             barDataList.add(data)
         }
@@ -39,20 +39,20 @@ class ScoreSerializer: JsonSerializer<Score> {
 class ScoreDeserializer: JsonDeserializer<Score> {
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): Score {
         val data = Gson().fromJson(json, ScoreData::class.java)
-        var barList = mutableListOf<Bar>()
-        data.bars.forEach{ bar ->
-            val timeSignature = TimeSignature(bar.timeSignature.numerator, bar.timeSignature.denominator)
+        val barList = mutableListOf<Bar>()
+        data.bars.forEach{ barData ->
+            val timeSignature = TimeSignature(barData.timeSignature.numerator, barData.timeSignature.denominator)
             val voiceList = mutableMapOf<Int, MutableList<RhythmicInterval>>()
-            bar.voices.forEach{ voice ->
+            barData.voiceIntervals.forEach{ voice ->
                 val intervalList = mutableListOf<RhythmicInterval>()
                 voice.value.forEach{
                     val length = RhythmicLength(it.length.basic, it.length.modifier)
-                    val interval = RhythmicInterval(length, it.noteHeads, it.startUnit, it.widthPercent)
+                    val interval = RhythmicInterval(length, it.noteHeads.toMutableMap(), it.startUnit)
                     intervalList.add(interval)
                 }
                 voiceList[voice.key] = intervalList
             }
-            barList.add(Bar(bar.barNr, timeSignature, voiceList))
+            barList.add(Bar(barData.barNr, timeSignature, voiceList))
         }
         return Score(barList, data.title)
     }
