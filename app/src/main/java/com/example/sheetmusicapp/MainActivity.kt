@@ -26,6 +26,8 @@ const val noteHeadHeightToTotalHeightRatio = 0.2741
 const val noteHeadWidthToNoteHeightRatio = 0.3474
 const val noteStemWidthToNoteHeightRatio = 0.0362
 const val noteStemStartFromUpNoteBottomToNoteHeightRatio = 0.1816
+const val dotWidthToNoteHeadWidthRatio = 0.2803
+const val dotNoteDistanceToNoteHeadWidthRatio = 0.2179
 const val barStrokeWidthToBarHeightRatio = 0.0125
 
 const val CREATE_FILE = 1
@@ -246,6 +248,40 @@ class MainActivity : AppCompatActivity() {
         return  noteView
     }
 
+    private fun createConstrainedDotView(noteHeadWidth: Int, barHeight: Int,  stemDirection: StemDirection, noteView: ImageView): ImageView{
+        val dotWidth = (noteHeadWidth * dotWidthToNoteHeadWidthRatio).toInt()
+        val dotToNoteDistance = (noteHeadWidth * dotNoteDistanceToNoteHeadWidthRatio).toInt()
+        val noteHeadHeight = barHeight / 4
+        val dotMarginToUpNoteBottom = (noteHeadHeight / 2.0 - 0.25 * dotWidth).toInt()
+
+        val dotView = ImageView(this)
+        dotView.id = View.generateViewId()
+        dotView.layoutParams = ViewGroup.LayoutParams(dotWidth, dotWidth)
+        dotView.setImageResource(R.drawable.black_circle)
+
+        val constraintLayout = findViewById<ConstraintLayout>(R.id.notesConstraintLayout)
+        constraintLayout.addView(dotView)
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(constraintLayout)
+
+        when (stemDirection){
+            // Constrain bottom to note view bottom & left to (left + noteHeadWidth)
+            StemDirection.UP -> {
+                constraintSet.connect(dotView.id, ConstraintSet.BOTTOM, noteView.id, ConstraintSet.BOTTOM, dotMarginToUpNoteBottom)
+                constraintSet.connect(dotView.id, ConstraintSet.LEFT, noteView.id, ConstraintSet.LEFT, noteHeadWidth + dotToNoteDistance)
+            }
+            // Constrain top to note view top with inverse margin (relative to note head) & left to right
+            StemDirection.DOWN -> {
+                constraintSet.connect(dotView.id, ConstraintSet.TOP, noteView.id, ConstraintSet.TOP, noteHeadHeight - dotMarginToUpNoteBottom)
+                constraintSet.connect(dotView.id, ConstraintSet.LEFT, noteView.id, ConstraintSet.RIGHT, dotToNoteDistance)
+            }
+        }
+
+        constraintSet.applyTo(constraintLayout)
+
+        return dotView
+    }
+
     // Creates and returns potentially vertically mirrored note head.
     private fun createNoteHeadView(noteHeadWidth: Int, noteHeadHeight: Int, isMirrored: Boolean): ImageView{
         val noteHeadView = ImageView(this)
@@ -259,6 +295,8 @@ class MainActivity : AppCompatActivity() {
 
         return noteHeadView
     }
+
+
 
     // Adds a given note (head) view to the UI bar.
     private fun addNoteView(noteView: ImageView, musicalHeight: Int, horizontalMargin: Int, stemDirection: StemDirection, noteHeadWidth: Int, barHeight: Int, barWidth: Int) {
@@ -366,6 +404,7 @@ class MainActivity : AppCompatActivity() {
                 constraintSet.connect(noteView.id, ConstraintSet.TOP, R.id.notesTopGuideline, ConstraintSet.BOTTOM, marginTopToBarTop)
             }
         }
+        createConstrainedDotView(noteHeadWidth, barHeight, stemDirection, noteView)
         constraintSet.applyTo(constraintLayout)
     }
 
