@@ -18,6 +18,7 @@ import com.devs.vectorchildfinder.VectorChildFinder
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
+import com.google.android.material.snackbar.Snackbar
 import com.google.gson.GsonBuilder
 
 const val noteWidthToHeightRatio = 0.6031
@@ -59,11 +60,19 @@ class MainActivity : AppCompatActivity() {
                 val jsonRaw = file?.readBytes()
                 var json = jsonRaw?.let { String(it) }
                 val test = parser.create().fromJson(json, Score::class.java)
-                val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.realMain)
-                mainConstraintLayout.doOnLayout {
-                    scaleBarLineStrokeWidth()
-                    visualizeBarVoiceOne(test.barList[0])
+                if (test == null) {
+                    Snackbar.make(
+                            findViewById(R.id.main),
+                            "Wrong file format",
+                            Snackbar.LENGTH_SHORT
+                    ).show()
                 }
+//                println(test)
+//                val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.realMain)
+//                mainConstraintLayout.doOnLayout {
+//                    scaleBarLineStrokeWidth()
+//                    visualizeBar(test.barList[0])
+//                }
             }
         }
     }
