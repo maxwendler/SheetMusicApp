@@ -1,10 +1,15 @@
 package com.example.sheetmusicapp
 
+import android.app.Activity
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.ImageView
 import android.widget.Space
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
@@ -13,15 +18,15 @@ import com.devs.vectorchildfinder.VectorChildFinder
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
-import java.lang.IllegalArgumentException
 import com.google.gson.GsonBuilder
-import java.io.File
-import java.lang.IllegalStateException
 
 const val noteWidthToHeightRatio = 0.6031
 const val noteHeadHeightToTotalHeightRatio = 0.2741
 const val noteHeadWidthToNoteHeightRatio = 0.3474
 const val barStrokeWidthToBarHeightRatio = 0.0125
+
+const val CREATE_FILE = 1
+const val PICK_FILE = 2
 
 
 class MainActivity : AppCompatActivity() {
@@ -32,28 +37,64 @@ class MainActivity : AppCompatActivity() {
         parser.registerTypeAdapter(Score::class.java, ScoreDeserializer())
     }
 
-    fun saveToFile(name: String, json: String) {
-        try {
-            val file = File(applicationContext.getExternalFilesDir(null), name)
-            file.writeText(json)
-        } catch (e: Exception) {
-            e.printStackTrace()
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == CREATE_FILE && resultCode == Activity.RESULT_OK) {
+            data?.data?.also { uri ->
+                // Perform operations on the document using its URI.
+                println(uri)
+                val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
+                val json = parser.setPrettyPrinting().create().toJson(exampleScore)
+                val file = contentResolver.openOutputStream(uri)
+                file?.write(json.toByteArray())
+            }
+        }
+        if (requestCode == PICK_FILE && resultCode == Activity.RESULT_OK) {
+            data?.data?.also { uri ->
+                println(uri)
+                // Perform operations on the document using its URI.
+                val file = contentResolver.openInputStream(uri)
+                val jsonRaw = file?.readBytes()
+                var json = jsonRaw?.let { String(it) }
+                val test = parser.create().fromJson(json, Score::class.java)
+                val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.realMain)
+                mainConstraintLayout.doOnLayout {
+                    scaleBarLineStrokeWidth()
+                    visualizeBarVoiceOne(test.barList[0])
+                }
+            }
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        initParser()
-        super.onCreate(savedInstanceState)
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun initButtonGroups() {
+        val openFileButton: Button = findViewById(R.id.button)
+        openFileButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+            }
+            startActivityForResult(intent, PICK_FILE)
+        }
+        val saveFileButton: Button = findViewById(R.id.button2)
+        saveFileButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "sheet.json")
+            }
+            startActivityForResult(intent, CREATE_FILE)
+        }
+    }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        initParser()
         // val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
         val exampleBar = Bar.makeEmpty(1, TimeSignature(5, 8))
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.ELLIPTIC, 0, 0)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 12, 0)
-
-//        val json = parser.setPrettyPrinting().create().toJson(exampleScore)
-//        saveToFile("test.txt", json)
-//        println(json)
-//        val test = parser.create().fromJson(json, Score::class.java)
 
         setContentView(R.layout.activity_main)
 
@@ -62,6 +103,7 @@ class MainActivity : AppCompatActivity() {
             scaleBarLineStrokeWidth()
             visualizeBarVoiceOne(exampleBar)
         }
+        initButtonGroups()
     }
 
     /**
