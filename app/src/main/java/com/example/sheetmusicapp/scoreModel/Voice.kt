@@ -3,6 +3,11 @@ package com.example.sheetmusicapp.scoreModel
 import java.lang.IllegalArgumentException
 import kotlin.math.max
 
+enum class StemDirection{
+    UP,
+    DOWN
+}
+
 /**
  * A voice of a [Bar], i.e. (1) a group of [RhythmicInterval] instances in [intervals] of which notes should
  * connect their stems in some cases, and should have the same stem direction when there are multiple [Voice] instances
@@ -24,6 +29,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
 
     private val subGroups: List<SubGroup>
     private val intervalSubGroupIdxs: MutableMap<RhythmicInterval, Int> = mutableMapOf()
+    var stemDirection : StemDirection? = null
 
     init {
 
@@ -64,6 +70,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
                 currentInterval = intervals[intervalIdx]
             }
             calculatePaddingFactor(currentSubGroup, i)
+            currentSubGroup.calculateNoteHeightSum()
             subGroupAggregator.add(currentSubGroup)
         }
         subGroups = subGroupAggregator.toList()
@@ -133,7 +140,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
      * Calculates the average height of all notes of all intervals of the sub groups of the voice.
      * @return null when no notes are present (voice only consists of rests), the average otherwise
      */
-    fun calculateAvgNoteHeight() : Double? {
+    fun getAvgNoteHeight() : Double? {
         var heightSum = 0
         var notesCount = 0
         for (subGroup in subGroups){
@@ -188,7 +195,8 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
                     intervalSubGroupIdxs.remove(interval)
                 }
             }
-            calculatePaddingFactor(subGroups[i], i)
+            calculatePaddingFactor(currentSubGroup, i)
+            currentSubGroup.calculateNoteHeightSum()
         }
     }
 }
@@ -205,7 +213,6 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
  * Automatically updated by [SubGroup.add] and [SubGroup.remove]. 0 when empty.
  * @property noteHeightSum For average note height calculation of whole voice.
  * Automatically updated by [SubGroup.add] and [SubGroup.remove]. Null when empty.
- * @property size Wrapper for size of [intervals].
  * @property paddingFactor Specifies how many times the width of a padding between subgroups should be added
  * to the musical length-based UI width of the last interval of the sub group when calculating note
  * positions iteratively. Is calculated by the [Voice] a sub group is part of.
@@ -213,12 +220,9 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
  */
 class SubGroup (private val intervals: MutableList<RhythmicInterval>, private val startUnit: Int, private val endUnit: Int){
 
-    var noteHeightSum : Int?
+    var noteHeightSum : Int? = null
         private set
     var notesCount : Int = 0
-        private set
-
-    var size = intervals.size
         private set
 
     var paddingFactor : Int = 0
@@ -231,15 +235,12 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                 throw IllegalArgumentException("Interval $i doesn't start in the sub group's units.")
             }
         }
-
-        noteHeightSum = calculateNoteHeightSum()
     }
 
     fun getCopyOfIntervals() : MutableList<RhythmicInterval> {return intervals.toMutableList()}
 
     /**
-     * Wrapper for adding an interval to [intervals] that provides error detection on input and
-     * automatically adapts [size], [noteHeightSum] and [notesCount].
+     * Wrapper for adding an interval to [intervals] that provides error detection on input.
      *
      * @param interval A [RhythmicInterval] instance which should be positioned the sub group's start and end unit
      * and is not already part of [intervals].
@@ -255,13 +256,10 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
         }
 
         intervals.add(interval)
-        size = intervals.size
-        noteHeightSum = calculateNoteHeightSum()
     }
 
     /**
-     * Wrapper for removing an interval from [intervals] that provides error detection on input and
-     * automatically adapts [size] and [noteHeightSum] and [notesCount].
+     * Wrapper for removing an interval from [intervals] that provides error detection on input.
      *
      * @param interval A [RhythmicInterval] instance which should be part of the subgroup.
      * @throws IllegalArgumentException When the given interval is not part of the subgroup-
@@ -271,16 +269,25 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
         if (!removed){
             throw IllegalArgumentException("The given interval is not in the sub group!")
         }
-        size = intervals.size
-        noteHeightSum = calculateNoteHeightSum()
     }
 
+    /**
+     * Returns the common stem direction for all notes of the subgroup, based on their height average.
+     * Notes equal to or smaller than 6.5 will face upwards, the others downwards.
+     */
+    fun getStemDirection() : StemDirection? {
+        val noteHeightAvg = getAvgNoteHeight()
+        if (noteHeightAvg == null){
+            return null
+        }
+        return if (noteHeightAvg <= 6.5) StemDirection.UP else StemDirection.DOWN
+    }
 
     /**
      * Returns the height average of the notes of all contained intervals, or null if there are
      * no notes (or intervals).
      */
-    fun getAvgNoteHeight() : Double? {
+    private fun getAvgNoteHeight() : Double? {
         val currentNoteHeightSum = noteHeightSum
         if (currentNoteHeightSum == null){
             return null
@@ -294,7 +301,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
      * Returns the sum of the notes of all contained intervals, or null if there are no notes.
      * Also sets [notesCount] to the amount of contained notes (0 or more).
      */
-    private fun calculateNoteHeightSum() : Int? {
+    fun calculateNoteHeightSum(){
         var sum = 0
         notesCount = 0
         for (interval in intervals){
@@ -303,7 +310,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                 notesCount++
             }
         }
-        if (notesCount > 0) return sum else return null
+        noteHeightSum = if (notesCount > 0) sum else null
     }
 
     /**

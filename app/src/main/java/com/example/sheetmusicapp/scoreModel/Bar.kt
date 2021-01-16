@@ -6,7 +6,7 @@ import java.lang.IllegalStateException
 
 
 // Constant specifying the combined percentage of width of the padding elements on the right and the left of a UI bar.
-const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.1
+const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.15
 // Constant specifying the combined percentage of width of all notes, depending on the padding fractions.
 const val BAR_NOTES_PERCENT = 1 - BAR_LEFTRIGHT_PADDING_PERCENT
 const val WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT = 0.025
@@ -124,6 +124,29 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
         voices[voice] = Voice(newVoiceIntervals, timeSignature)
     }
 
+    fun addRest(voiceNum: Int, length: RhythmicLength, intervalIdx: Int){
+        if (voiceNum !in 1..4){
+            throw IllegalArgumentException("Only voices numbered 1 to 4 can exist.")
+        }
+
+        if (voices[voiceNum] == null){
+            addEmptyVoice(voiceNum)
+        }
+
+        val voice = voices[voiceNum]
+
+        if (voice != null){
+            if (intervalIdx >= voice.intervals.size){
+                throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
+            }
+            val intervalAtIdx = voice.intervals[intervalIdx]
+            if (length.lengthInUnits != intervalAtIdx.getLengthCopy().lengthInUnits){
+                changeIntervalLength(voice.intervals, length, intervalIdx)
+                voice.recalculateSubGroupsFrom(intervalIdx)
+            }
+        }
+    }
+
     /**
      * Adds a note of the specified [RhythmicLength], [NoteHeadType] and [height] to the given voice and the given interval position
      * If the length is lesser than the one of the interval currently at the specified position, rests will be added to fill the gap.
@@ -135,38 +158,53 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
      */
     fun addNote(voiceNum: Int, length: RhythmicLength, type: NoteHeadType, height: Int, intervalIdx: Int){
 
+        if (voiceNum !in 1..4){
+            throw IllegalArgumentException("Only voices numbered 1 to 4 can exist.")
+        }
+
         if (voices[voiceNum] == null){
             addEmptyVoice(voiceNum)
         }
 
         val voice = voices[voiceNum]
-        if (voice != null){
 
+        if (voice != null){
             if (intervalIdx >= voice.intervals.size){
                 throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
             }
+            val intervalAtIdx = voice.intervals[intervalIdx]
+            intervalAtIdx.addNoteHead(height, type)
+            if (length.lengthInUnits != intervalAtIdx.getLengthCopy().lengthInUnits){
+                changeIntervalLength(voice.intervals, length, intervalIdx)
+                voice.recalculateSubGroupsFrom(intervalIdx)
+            }
+            calculateVoiceStemDirections()
+        }
+    }
 
-            val currentIntervalAtIdx = voice.intervals[intervalIdx]
-            if (currentIntervalAtIdx.getLengthCopy().lengthInUnits == length.lengthInUnits){
-                currentIntervalAtIdx.addNoteHead(height, type)
-            }
-            else if (currentIntervalAtIdx.getLengthCopy().lengthInUnits > length.lengthInUnits){
-                changeIntervalToSmaller(voice.intervals, length, type, height, intervalIdx)
-            }
-            // (currentIntervalAtIdx.length.lengthInUnits < length.lengthInUnits) == true
-            else {
-                changeIntervalToLarger(voice.intervals, length, type, height, intervalIdx)
-            }
+    private fun changeIntervalLength(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, intervalIdx: Int){
+        if (intervalIdx >= voiceIntervals.size){
+            throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
+        }
 
-            voice.recalculateSubGroupsFrom(intervalIdx)
+        val currentIntervalAtIdx = voiceIntervals[intervalIdx]
+        if (currentIntervalAtIdx.getLengthCopy().lengthInUnits == length.lengthInUnits){
+            throw IllegalArgumentException("The given length is not different from the current one of the interval.")
+        }
+        else if (currentIntervalAtIdx.getLengthCopy().lengthInUnits > length.lengthInUnits){
+            changeIntervalToSmaller(voiceIntervals, length, intervalIdx)
+        }
+        // (currentIntervalAtIdx.length.lengthInUnits < length.lengthInUnits) == true
+        else {
+            changeIntervalToLarger(voiceIntervals, length, intervalIdx)
         }
     }
 
     /**
-     * Changes an interval of a voice given by [voiceIntervals] to a smaller length while adding the specified note head at the given height.
+     * Changes an interval of a voice given by [voiceIntervals] to a smaller length.
      * Rests are inserted to fill the emerging gap.
      */
-    private fun changeIntervalToSmaller(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, type: NoteHeadType, height: Int, intervalIdx: Int){
+    private fun changeIntervalToSmaller(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, intervalIdx: Int){
 
         val intervalAtIdx = voiceIntervals[intervalIdx]
 
@@ -175,9 +213,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
         val unitLengthOfRemainder = intervalAtIdx.getLengthCopy().lengthInUnits - length.lengthInUnits
         val rhythmicLengthsForRemainder = lengthsFromUnitLengthAsc(unitLengthOfRemainder)
 
-        // Change length and note head of the interval while keeping old note heads.
         intervalAtIdx.setLength(length)
-        intervalAtIdx.addNoteHead(height, type)
 
         // insert intervals that are rests for the remaining rhythmic length after the replacing interval
         var insertRestIdx = intervalIdx + 1
@@ -190,10 +226,10 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
     }
 
     /**
-     * Changes an interval of a voice given by [voiceIntervals] to a greater length while adding the specified note head at the given height.
+     * Changes an interval of a voice given by [voiceIntervals] to a greater length.
      * Following intervals are removed or shortened accordingly.
      */
-    private fun changeIntervalToLarger(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, type: NoteHeadType, height: Int, intervalIdx: Int){
+    private fun changeIntervalToLarger(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, intervalIdx: Int){
 
         val intervalAtIdx = voiceIntervals[intervalIdx]
         // fault tolerance for too large input
@@ -243,14 +279,40 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
             }
 
         }
-
-        // Change length of the interval that gets larger.
         intervalAtIdx.setLength(length)
-        intervalAtIdx.addNoteHead(height, type)
 
         // Remove intervals fully swallowed by the grown interval.
         for (i in (intervalIdx+1)..lastReplacedIdx){
             voiceIntervals.removeAt(intervalIdx + 1)
+        }
+    }
+
+    /**
+     * Calculates and sets the common stem direction of all bar voices. If only one voice exists,
+     * its subgroups can decide their stem direction, therefore it'll be null.
+     */
+    private fun calculateVoiceStemDirections(){
+        if (voices.size <= 1){
+            voices.values.forEach { voice -> voice.stemDirection = null }
+        }
+        else {
+            if (voices.size > 4){
+                throw IllegalStateException("No more than four voices should be able to exist!")
+            }
+            else {
+                val voicesByAvgHeightAsc = voices.values.sortedBy { it.getAvgNoteHeight() }
+                voicesByAvgHeightAsc.first().stemDirection = StemDirection.UP
+                voicesByAvgHeightAsc.last().stemDirection = StemDirection.DOWN
+                when (voices.size){
+                    3 -> {
+                        voicesByAvgHeightAsc[1].stemDirection = StemDirection.UP
+                    }
+                    4 -> {
+                        voicesByAvgHeightAsc[1].stemDirection = StemDirection.UP
+                        voicesByAvgHeightAsc[2].stemDirection = StemDirection.DOWN
+                    }
+                }
+            }
         }
     }
 
