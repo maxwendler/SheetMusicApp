@@ -70,7 +70,6 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
                 currentInterval = intervals[intervalIdx]
             }
             calculatePaddingFactor(currentSubGroup, i)
-            currentSubGroup.calculateNoteHeightSum()
             subGroupAggregator.add(currentSubGroup)
         }
         subGroups = subGroupAggregator.toList()
@@ -143,11 +142,10 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
     fun getAvgNoteHeight() : Double? {
         var heightSum = 0
         var notesCount = 0
-        for (subGroup in subGroups){
-            val subGroupSum = subGroup.noteHeightSum
-            if (subGroupSum != null){
-                heightSum += subGroupSum
-                notesCount += subGroup.notesCount
+        for (interval in intervals){
+            for (noteHeight in interval.getNoteHeadsCopy().keys){
+                heightSum += noteHeight
+                notesCount++
             }
         }
         if (notesCount == 0) return null
@@ -196,7 +194,6 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
                 }
             }
             calculatePaddingFactor(currentSubGroup, i)
-            currentSubGroup.calculateNoteHeightSum()
         }
     }
 }
@@ -209,9 +206,6 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
  * subgroup it stretches, calculated by the [Voice] the sub group's part of.
  * [startUnit] and [endUnit] should be derived from voice time signature before construction.
  *
- * @property notesCount For average note height calculation of whole voice.
- * Automatically updated by [SubGroup.add] and [SubGroup.remove]. 0 when empty.
- * @property noteHeightSum For average note height calculation of whole voice.
  * Automatically updated by [SubGroup.add] and [SubGroup.remove]. Null when empty.
  * @property paddingFactor Specifies how many times the width of a padding between subgroups should be added
  * to the musical length-based UI width of the last interval of the sub group when calculating note
@@ -219,11 +213,6 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
  * @throws IllegalArgumentException When a given interval exceeds the given [startUnit] or [endUnit].
  */
 class SubGroup (private val intervals: MutableList<RhythmicInterval>, private val startUnit: Int, private val endUnit: Int){
-
-    var noteHeightSum : Int? = null
-        private set
-    var notesCount : Int = 0
-        private set
 
     var paddingFactor : Int = 0
     var lastInterval : RhythmicInterval? = null
@@ -288,29 +277,34 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
      * no notes (or intervals).
      */
     private fun getAvgNoteHeight() : Double? {
-        val currentNoteHeightSum = noteHeightSum
-        if (currentNoteHeightSum == null){
+        val noteHeightSum = calculateNoteHeightSum()
+        if (noteHeightSum == 0){
             return null
         }
         else{
-            return currentNoteHeightSum / notesCount.toDouble()
+            return noteHeightSum / getNotesCount().toDouble()
         }
     }
 
     /**
      * Returns the sum of the notes of all contained intervals, or null if there are no notes.
-     * Also sets [notesCount] to the amount of contained notes (0 or more).
      */
-    fun calculateNoteHeightSum(){
+    private fun calculateNoteHeightSum() : Int{
         var sum = 0
-        notesCount = 0
         for (interval in intervals){
             for (noteHeadHeight in interval.getNoteHeadsCopy().keys){
                 sum += noteHeadHeight
-                notesCount++
             }
         }
-        noteHeightSum = if (notesCount > 0) sum else null
+        return sum
+    }
+
+    private fun getNotesCount(): Int {
+        var count = 0
+        for (interval in intervals){
+            count += interval.getNoteHeadsCopy().keys.size
+        }
+        return count
     }
 
     /**

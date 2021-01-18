@@ -144,6 +144,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
                 changeIntervalLength(voice.intervals, length, intervalIdx)
                 voice.recalculateSubGroupsFrom(intervalIdx)
             }
+            voice.intervals[intervalIdx].makeRest()
         }
     }
 
