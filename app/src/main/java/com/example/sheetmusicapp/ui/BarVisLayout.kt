@@ -10,6 +10,7 @@ import androidx.core.view.doOnLayout
 import com.example.sheetmusicapp.R
 import com.example.sheetmusicapp.scoreModel.*
 import java.lang.IllegalStateException
+import kotlin.math.round
 
 const val noteHeightToNoteHeadHeightRatio = 1 / 0.2741
 
@@ -278,7 +279,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                     val restView = createRestView(intervalLength.basicLength)
                     addRestView(restView, if (voiceDirection == null) null else voice.getAvgNoteHeight(), intervalLength.basicLength, intervalWidth, horizontalMarginInt)
                     if (isDotted) {
-                        createConstrainedRestDotView(restView, intervalLength)
+                        createConstrainedRestDotView(restView, intervalLength.basicLength)
                     }
                 }
 
@@ -380,29 +381,47 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         return noteHeadView
     }
 
+    private fun getRestHeight(basicLength: BasicRhythmicLength) : Double{
+        return when (basicLength){
+            BasicRhythmicLength.EIGHTH -> verticalMusicHeightStep * 4 * 0.9
+            BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.QUARTER -> verticalMusicHeightStep * 6 * 0.9
+            BasicRhythmicLength.HALF, BasicRhythmicLength.WHOLE -> verticalMusicHeightStep * 4/3.0
+        }
+    }
+
     /**
      * Creates and returns a specific rest view, based on its [RhythmicLength], with id.
      */
     private fun createRestView(basicLength: BasicRhythmicLength) : ImageView{
         // only applies to eighth rests
-        val restHeight = (barHeight * 2 * 0.9 / 4)
+        val restHeight = getRestHeight(basicLength)
         val restView = ImageView(context)
         restView.id = View.generateViewId()
         restView.layoutParams = ViewGroup.LayoutParams(restWidthFromHeight(basicLength, restHeight).toInt(), restHeight.toInt())
 
         restView.scaleType = ImageView.ScaleType.FIT_XY
-        restView.setImageResource(R.drawable.ic_rest_eighth)
+        restView.setImageResource(when(basicLength){
+            BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_rest_sixteenth
+            BasicRhythmicLength.EIGHTH -> R.drawable.ic_rest_eighth
+            BasicRhythmicLength.QUARTER -> R.drawable.ic_rest_quarter
+            BasicRhythmicLength.HALF, BasicRhythmicLength.WHOLE -> R.drawable.ic_rest_half
+        })
+
+        // Whole rest is half rest upside down
+        if (basicLength == BasicRhythmicLength.WHOLE){
+            restView.scaleY = -1f
+        }
 
         return restView
     }
 
     /**
      * Creates and returns a dot view with id and constrains it to the given rest view. To top or to bottom is
-     * based on [restLength].
+     * based on [basicLength].
      *
      * @throws IllegalStateException When id of this layout has not been set, i.e. generated, because constraining is not possible then.
      */
-    private fun createConstrainedRestDotView(restView: ImageView, restLength: RhythmicLength) : ImageView {
+    private fun createConstrainedRestDotView(restView: ImageView, basicLength: BasicRhythmicLength) : ImageView {
         if (this.id == 0){
             throw IllegalStateException("Can't constrain elements because this instance has no id!")
         }
@@ -416,8 +435,14 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
-        // only applies to eighth rests
-        constraintSet.connect(dotView.id, ConstraintSet.TOP, restView.id, ConstraintSet.TOP, dotMarginToUpNoteBottom)
+        // constrain dot to top or bottom of rest
+        if (basicLength in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH, BasicRhythmicLength.WHOLE)){
+            constraintSet.connect(dotView.id, ConstraintSet.TOP, restView.id, ConstraintSet.TOP, dotMarginToUpNoteBottom)
+        }
+        else {
+            constraintSet.connect(dotView.id, ConstraintSet.BOTTOM, restView.id, ConstraintSet.BOTTOM, dotMarginToUpNoteBottom)
+        }
+
         constraintSet.connect(dotView.id, ConstraintSet.LEFT, restView.id, ConstraintSet.RIGHT, dotToNoteDistance)
         constraintSet.applyTo(this)
 
@@ -520,7 +545,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
     }
 
     /**
-     * Adds the given [restView] to this layout, and constrains it to the centre of its voice and the centre of the horizontal voice section of the given [length],
+     * Adds the given [restView] to this layout, and constrains it to the centre of its voice and the centre of the horizontal voice section of the given [basicLength],
      * via [avgVoiceNoteHeight], [intervalWidth] and [horizontalMargin].
      *
      * @throws IllegalStateException When id of this layout has not been set, i.e. generated, because constraining is not possible then.
@@ -531,23 +556,40 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         }
 
         // only applies to eighth rests
-        val restHeight = (barHeight * 2 * 0.9 / 4)
+        val restHeight = getRestHeight(basicLength)
         val restWidth = restWidthFromHeight(basicLength, restHeight)
 
         // for constraining to middle of interval width
-        // only applies to eighth rests
         val leftMargin = (horizontalMargin + (intervalWidth - restWidth) / 2.0).toInt()
         val voiceCentreNoteHeight = avgVoiceNoteHeight ?: 6.0
-        val voiceCentreMargin = (smallestMusicHeightToBottomMargin + (13 - voiceCentreNoteHeight) * verticalMusicHeightStep)
-        val verticalMargin = (voiceCentreMargin - restHeight / 2).toInt()
 
         this.addView(restView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
         constraintSet.connect(restView.id, ConstraintSet.LEFT, this.id, ConstraintSet.LEFT, leftMargin)
-        // only applies to eighth rests
-        constraintSet.connect(restView.id, ConstraintSet.TOP, this.id, ConstraintSet.TOP, verticalMargin)
+
+        // constrain as middle to middle of voice vertically
+        if (basicLength !in listOf(BasicRhythmicLength.HALF, BasicRhythmicLength.WHOLE)) {
+            val voiceCentreMargin = (smallestMusicHeightToBottomMargin + (13 - voiceCentreNoteHeight) * verticalMusicHeightStep)
+            val verticalMargin = (voiceCentreMargin - restHeight / 2.0).toInt()
+            constraintSet.connect(restView.id, ConstraintSet.TOP, this.id, ConstraintSet.TOP, verticalMargin)
+        }
+        // constrain to top or bottom of rounded voice middle (i.e. a vertical position that's possible for notes)
+        else {
+            // make sure the rest is "attached" to horizontal bar stroke (or in position of optional horizontal above or below bar)
+            val evenMusicHeightDerivedFromVoiceAvg = round(voiceCentreNoteHeight / 2.0) * 2
+            // constrain to bottom
+            if (basicLength == BasicRhythmicLength.HALF){
+                val verticalMargin = (smallestMusicHeightToBottomMargin + (evenMusicHeightDerivedFromVoiceAvg + 1) * verticalMusicHeightStep - barStrokeWidth / 2.0).toInt()
+                constraintSet.connect(restView.id, ConstraintSet.BOTTOM, this.id, ConstraintSet.BOTTOM, verticalMargin)
+            }
+            // constrain to top
+            else {
+                val verticalMargin = (smallestMusicHeightToBottomMargin + (13 - voiceCentreNoteHeight) * verticalMusicHeightStep - barStrokeWidth / 2.0).toInt()
+                constraintSet.connect(restView.id, ConstraintSet.TOP, this.id, ConstraintSet.TOP, verticalMargin)
+            }
+        }
         constraintSet.applyTo(this)
     }
 
