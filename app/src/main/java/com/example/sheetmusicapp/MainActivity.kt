@@ -93,11 +93,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         initParser()
         // val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
-        val exampleBar = Bar.makeEmpty(1, TimeSignature(5, 8))
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.ELLIPTIC, 12, 0)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 11, 0)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 6, 0)
-        exampleBar.addRest(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), 0)
+        val exampleBar = Bar.makeEmpty(1, TimeSignature(6, 4))
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 1, 0)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 0, 0)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 6, 0)
+        // exampleBar.addRest(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), 0)
 
         setContentView(R.layout.activity_main)
 

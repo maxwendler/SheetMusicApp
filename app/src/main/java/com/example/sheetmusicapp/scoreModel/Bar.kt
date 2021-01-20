@@ -3,14 +3,6 @@ package com.example.sheetmusicapp.scoreModel
 import java.lang.IllegalArgumentException
 import java.lang.IllegalStateException
 
-
-
-// Constant specifying the combined percentage of width of the padding elements on the right and the left of a UI bar.
-const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.15
-// Constant specifying the combined percentage of width of all notes, depending on the padding fractions.
-const val BAR_NOTES_PERCENT = 1 - BAR_LEFTRIGHT_PADDING_PERCENT
-const val WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT = 0.025
-
 /**
  * Bar instances are the elements of a drum score. They have a certain time signature and consist of
  * voices out of different rhythmic intervals with their respective notes.
@@ -206,7 +198,6 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
      * Rests are inserted to fill the emerging gap.
      */
     private fun changeIntervalToSmaller(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, intervalIdx: Int){
-
         val intervalAtIdx = voiceIntervals[intervalIdx]
 
         // calculate rhythmic length in units remaining of replaced instance when replaced with interval of param length
@@ -234,7 +225,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
 
         val intervalAtIdx = voiceIntervals[intervalIdx]
         // fault tolerance for too large input
-        if (intervalAtIdx.startUnit + length.lengthInUnits > timeSignature.units){
+        if (intervalAtIdx.startUnit + length.lengthInUnits - 1 > timeSignature.units){
             throw IllegalArgumentException("The given interval exceeds the rhythmic length of the bar when placed in the position given by intervalIdx.")
         }
 
@@ -242,18 +233,22 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
         // Don't delete the intervals that will be fully replaced yet, so unmoved cutInTwoInterval can be handled.
         val replacingEndUnit = intervalAtIdx.startUnit + (length.lengthInUnits - 1)
         var cutInTwoInterval : RhythmicInterval? = null
-        var lastReplacedIdx = intervalIdx + 1
+        var lastReplacedIdx = intervalIdx
         var potentiallyAlsoReplacedIdx = intervalIdx + 1
-        while (voiceIntervals[potentiallyAlsoReplacedIdx].startUnit <= replacingEndUnit){
-            val potentiallyAlsoReplaced = voiceIntervals[potentiallyAlsoReplacedIdx]
-            if (potentiallyAlsoReplaced.endUnit <= replacingEndUnit){
-                lastReplacedIdx = potentiallyAlsoReplacedIdx
+        if (potentiallyAlsoReplacedIdx < voiceIntervals.size) {
+
+            while (voiceIntervals[potentiallyAlsoReplacedIdx].startUnit <= replacingEndUnit) {
+                val potentiallyAlsoReplaced = voiceIntervals[potentiallyAlsoReplacedIdx]
+                if (potentiallyAlsoReplaced.endUnit <= replacingEndUnit) {
+                    lastReplacedIdx = potentiallyAlsoReplacedIdx
+                } else {
+                    cutInTwoInterval = potentiallyAlsoReplaced
+                    break
+                }
+                potentiallyAlsoReplacedIdx++
+                if (potentiallyAlsoReplacedIdx == voiceIntervals.size) break
             }
-            else {
-                cutInTwoInterval = potentiallyAlsoReplaced
-                break
-            }
-            potentiallyAlsoReplacedIdx++
+
         }
 
         // Shorten the interval that's only partially swallowed by the changed one.
