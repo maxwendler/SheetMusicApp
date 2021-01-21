@@ -112,7 +112,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
             val currentLargest = lastInterval
             if (currentLargest != null){
                 if (interval.endUnit > currentLargest.endUnit){
-                       lastInterval = currentLargest
+                       lastInterval = interval
                 }
             }
             else {

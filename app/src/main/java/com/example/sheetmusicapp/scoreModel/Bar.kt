@@ -362,15 +362,15 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
             }
             else {
                 val voicesByAvgHeightAsc = voices.values.sortedBy { it.getAvgNoteHeight() }
-                voicesByAvgHeightAsc.first().stemDirection = StemDirection.UP
-                voicesByAvgHeightAsc.last().stemDirection = StemDirection.DOWN
+                voicesByAvgHeightAsc.first().stemDirection = StemDirection.DOWN
+                voicesByAvgHeightAsc.last().stemDirection = StemDirection.UP
                 when (voices.size){
                     3 -> {
-                        voicesByAvgHeightAsc[1].stemDirection = StemDirection.UP
+                        voicesByAvgHeightAsc[1].stemDirection = StemDirection.DOWN
                     }
                     4 -> {
-                        voicesByAvgHeightAsc[1].stemDirection = StemDirection.UP
-                        voicesByAvgHeightAsc[2].stemDirection = StemDirection.DOWN
+                        voicesByAvgHeightAsc[1].stemDirection = StemDirection.DOWN
+                        voicesByAvgHeightAsc[2].stemDirection = StemDirection.UP
                     }
                 }
             }

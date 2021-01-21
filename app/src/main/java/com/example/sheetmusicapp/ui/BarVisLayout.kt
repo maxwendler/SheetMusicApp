@@ -1,9 +1,11 @@
 package com.example.sheetmusicapp.ui
 
 import android.content.Context
+import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import androidx.annotation.RequiresApi
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
@@ -62,6 +64,8 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
     private var dotToNoteDistance : Int = 0
     private var dotMarginToUpNoteBottom : Int = 0
 
+    private var editingOverlayCallback: ((MutableList<Int>, Int) -> Unit)? = null
+
     init {
 
         // dynamically add content after this was laid out
@@ -70,6 +74,10 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             addBarView()
             visualizeBar()
         }
+    }
+
+    fun setEditingOverlayCallback(callback: ((MutableList<Int>, Int) -> Unit)) {
+        editingOverlayCallback = callback
     }
 
     /**
@@ -152,18 +160,21 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
      */
     private fun visualizeBar(){
 
-        for (voice in bar.voices.values){
+        for (voicePair in bar.voices){
             // voice only has common stem direction if there are multiple voices
+            val voice = voicePair.value
             val voiceDirection: StemDirection? = voice.stemDirection
             val subGroups: MutableList<SubGroup> = voice.getCopyOfSubGroups()
             val intervalSubGroupIdxs: Map<RhythmicInterval, Int> = voice.getIntervalSubGroupIdxsCopy()
 
             // horizontal margin for iterative positioning starts after left bar padding
             var horizontalMargin = (width * (BAR_LEFTRIGHT_PADDING_PERCENT / 2))
+            val horizontalMargins = mutableListOf<Int>()
 
             for (interval in voice.intervals){
 
                 val horizontalMarginInt = horizontalMargin.toInt()
+                horizontalMargins.add(horizontalMarginInt)
                 val intervalLength = interval.getLengthCopy()
                 val isDotted =  intervalLength.lengthModifier == LengthModifier.DOTTED
                 val isWhole = intervalLength.basicLength == BasicRhythmicLength.WHOLE
@@ -286,6 +297,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                 // Increase horizontal margin according to rhythmic interval length
                 horizontalMargin += intervalWidth
             }
+            editingOverlayCallback?.invoke(horizontalMargins, voicePair.key)
         }
 
     }

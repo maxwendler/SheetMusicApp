@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import androidx.annotation.RequiresApi
@@ -15,6 +16,7 @@ import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
 import com.example.sheetmusicapp.ui.BarVisLayout
+import com.example.sheetmusicapp.ui.EditableBarLayout
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.GsonBuilder
 
@@ -24,6 +26,7 @@ const val PICK_FILE = 2
 
 class MainActivity : AppCompatActivity() {
     var parser = GsonBuilder()
+    var editableBarLayout : EditableBarLayout? = null
 
     private fun initParser() {
         parser.registerTypeAdapter(Score::class.java, ScoreSerializer())
@@ -92,18 +95,31 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         initParser()
+
+
         // val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
-        val exampleBar = Bar.makeEmpty(1, TimeSignature(6, 4))
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 1, 0)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 0, 0)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 6, 0)
+        val exampleBar = Bar.makeEmpty(1, TimeSignature(4, 4))
+
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 0)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 1)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 2)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 3)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 4)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 5)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 6)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 11, 7)
+
+        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 3, 0)
+        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 7, 1)
+        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 3, 2)
+        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 7, 3)
         // exampleBar.addRest(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), 0)
 
         setContentView(R.layout.activity_main)
 
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
         mainConstraintLayout.doOnLayout {
-            addBarVisLayout(exampleBar)
+            editableBarLayout = addEditableBarLayout(exampleBar)
         }
         initButtonGroups()
     }
@@ -115,7 +131,7 @@ class MainActivity : AppCompatActivity() {
      * @throws IllegalStateException When height or width of this activity's main layout is 0, appearing
      * as it has not been laid out yet.
      */
-    private fun addBarVisLayout(bar: Bar) : BarVisLayout{
+    private fun addEditableBarLayout(bar: Bar) : EditableBarLayout{
 
         val mainLayout = findViewById<ConstraintLayout>(R.id.main)
         if (mainLayout.height == 0 || mainLayout.width == 0){
@@ -124,19 +140,27 @@ class MainActivity : AppCompatActivity() {
         val horizontalBarMargin = (mainLayout.width * 0.15).toInt()
         val width = (mainLayout.width * 0.7).toInt()
 
-        val barVisLayout = BarVisLayout(this, 1 / 3.0, bar)
-        barVisLayout.id = ViewGroup.generateViewId()
-        barVisLayout.tag = "barVisLayout"
-        barVisLayout.layoutParams = ViewGroup.LayoutParams(width, mainLayout.height)
-        mainLayout.addView(barVisLayout)
+        val editableBarLayout = EditableBarLayout(this, 1 / 3.0, bar)
+        editableBarLayout.id = ViewGroup.generateViewId()
+        editableBarLayout.tag = "editableBarLayout"
+        editableBarLayout.layoutParams = ViewGroup.LayoutParams(width, mainLayout.height)
+        mainLayout.addView(editableBarLayout)
 
         val constraintSet = ConstraintSet()
         constraintSet.clone(mainLayout)
-        constraintSet.connect(barVisLayout.id, ConstraintSet.LEFT, R.id.main, ConstraintSet.LEFT, horizontalBarMargin)
-        constraintSet.connect(barVisLayout.id, ConstraintSet.RIGHT, R.id.main, ConstraintSet.RIGHT, horizontalBarMargin)
+        constraintSet.connect(editableBarLayout.id, ConstraintSet.LEFT, R.id.main, ConstraintSet.LEFT, horizontalBarMargin)
+        constraintSet.connect(editableBarLayout.id, ConstraintSet.RIGHT, R.id.main, ConstraintSet.RIGHT, horizontalBarMargin)
         constraintSet.applyTo(mainLayout)
 
-        return barVisLayout
+        return editableBarLayout
+    }
+
+    fun handleVoiceChange(view: View){
+        val voiceNumButton = findViewById<Button>(R.id.voiceNumButton)
+        val currentNum = voiceNumButton.text.toString().toInt()
+        val newNum = currentNum % 4 + 1
+        voiceNumButton.text = newNum.toString()
+        editableBarLayout?.changeVisibleGrid(newNum)
     }
 
 }
