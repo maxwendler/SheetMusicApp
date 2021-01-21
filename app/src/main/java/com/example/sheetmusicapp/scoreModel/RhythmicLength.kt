@@ -17,7 +17,7 @@ enum class BasicRhythmicLength{
 
 enum class LengthModifier{
     DOTTED,
-    TRIPLET,
+    //TRIPLET,
     NONE
 }
 
@@ -65,9 +65,9 @@ class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: L
                 }
                 lengthInUnits = (lengthInUnits * 1.5).toInt()
             }
-            LengthModifier.TRIPLET -> {
+            /*LengthModifier.TRIPLET -> {
                 lengthInUnits = (lengthInUnits * 2/3.toDouble()).toInt()
-            }
+            }*/
         }
     }
 
@@ -112,9 +112,9 @@ class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: L
                 lengthInUnits = (lengthInUnits * 1.5).toInt()
             }
 
-            LengthModifier.TRIPLET -> {
+            /*LengthModifier.TRIPLET -> {
                 lengthInUnits = (lengthInUnits * 2/3.toDouble()).toInt()
-            }
+            }*/
         }
 
         return this
@@ -135,17 +135,17 @@ fun lengthsFromUnitLengthAsc(units: Int) : MutableList<RhythmicLength>{
             RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.DOTTED),       // 72 units
             RhythmicLength(BasicRhythmicLength.WHOLE),                              // 48
             RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.DOTTED),        // 36
-            RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.TRIPLET),      // 32
+            // RhythmicLength(BasicRhythmicLength.WHOLE, LengthModifier.TRIPLET),      // 32
             RhythmicLength(BasicRhythmicLength.HALF),                               // 24
             RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED),     // 18
-            RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.TRIPLET),       // 16
+            // RhythmicLength(BasicRhythmicLength.HALF, LengthModifier.TRIPLET),       // 16
             RhythmicLength(BasicRhythmicLength.QUARTER),                            // 12
             RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED),      // 9
-            RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.TRIPLET),    // 8
+            // RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.TRIPLET),    // 8
             RhythmicLength(BasicRhythmicLength.EIGHTH),                             // 6
-            RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.TRIPLET),     // 4
-            RhythmicLength(BasicRhythmicLength.SIXTEENTH),                          // 3
-            RhythmicLength(BasicRhythmicLength.SIXTEENTH, LengthModifier.TRIPLET)   // 2
+            // RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.TRIPLET),     // 4
+            RhythmicLength(BasicRhythmicLength.SIXTEENTH)                          // 3
+            // RhythmicLength(BasicRhythmicLength.SIXTEENTH, LengthModifier.TRIPLET)   // 2
     )
 
     val rhythmicLengths = mutableListOf<RhythmicLength>()

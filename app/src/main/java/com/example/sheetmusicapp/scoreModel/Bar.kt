@@ -149,14 +149,16 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
      * @throws IllegalArgumentException When the given rhythmic length exceeds the length of the bar's time signature when placed at the
      * position given by intervalIdx.
      */
-    fun addNote(voiceNum: Int, length: RhythmicLength, type: NoteHeadType, height: Int, intervalIdx: Int){
+    fun addNote(voiceNum: Int, length: RhythmicLength, type: NoteHeadType, height: Int, initIntervalIdx: Int){
 
         if (voiceNum !in 1..4){
             throw IllegalArgumentException("Only voices numbered 1 to 4 can exist.")
         }
 
+        var intervalIdx = initIntervalIdx
         if (voices[voiceNum] == null){
             addEmptyVoice(voiceNum)
+            intervalIdx = 0
         }
 
         val voice = voices[voiceNum]
@@ -282,6 +284,69 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
             voiceIntervals.removeAt(intervalIdx + 1)
         }
     }
+
+    /*
+    fun addTriplet(voiceNum: Int, length: RhythmicLength, type: NoteHeadType, height: Int, initIntervalIdx: Int){
+        if (length.lengthModifier != LengthModifier.NONE){
+            throw IllegalArgumentException("No triplets of modified lengths can be created!")
+        }
+        if (length.basicLength == BasicRhythmicLength.SIXTEENTH){
+            throw IllegalArgumentException("No triplets of sixteenth length can be created!")
+        }
+
+        if (voiceNum !in 1..4){
+            throw IllegalArgumentException("Only voices numbered 1 to 4 can exist.")
+        }
+
+        var intervalIdx = initIntervalIdx
+        if (voices[voiceNum] == null){
+            addEmptyVoice(voiceNum)
+            intervalIdx = 0
+        }
+
+        val voice = voices[voiceNum]
+
+        if (voice != null){
+            if (intervalIdx >= voice.intervals.size){
+                throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
+            }
+            val intervalAtIdx = voice.intervals[intervalIdx]
+            intervalAtIdx.addNoteHead(height, type)
+            if (length.lengthInUnits != intervalAtIdx.getLengthCopy().lengthInUnits){
+                changeIntervalLength(voice.intervals, length, intervalIdx)
+
+                voice.recalculateSubGroupsFrom(intervalIdx)
+            }
+            calculateVoiceStemDirections()
+        }
+    }
+
+    private fun replaceWithTriplet(voiceIntervals: MutableList<RhythmicInterval>, intervalIdx: Int){
+        if (intervalIdx >= voiceIntervals.size){
+            throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
+        }
+
+        val intervalAtIdx = voiceIntervals[intervalIdx]
+        val tripletSubdivisionLength : BasicRhythmicLength = when(intervalAtIdx.getLengthCopy().basicLength){
+            BasicRhythmicLength.WHOLE -> BasicRhythmicLength.HALF
+            BasicRhythmicLength.HALF -> BasicRhythmicLength.QUARTER
+            BasicRhythmicLength.QUARTER -> BasicRhythmicLength.EIGHTH
+            BasicRhythmicLength.EIGHTH -> BasicRhythmicLength.SIXTEENTH
+            else -> throw IllegalStateException("16ths can't be replaced by triplets.")
+        }
+
+        voiceIntervals.removeAt(intervalIdx)
+        val tripletIntervals = mutableListOf<RhythmicInterval>()
+        var insertIdx = intervalIdx
+        var startUnit = intervalAtIdx.startUnit
+        for (i in 1..3) {
+            val interval = RhythmicInterval(RhythmicLength(tripletSubdivisionLength, LengthModifier.TRIPLET), intervalAtIdx.getNoteHeadsCopy(), startUnit)
+            tripletIntervals.add(interval)
+            voiceIntervals.add(insertIdx, interval)
+            insertIdx++
+            startUnit += RhythmicLength(tripletSubdivisionLength, LengthModifier.TRIPLET).lengthInUnits
+        }
+    }*/
 
     /**
      * Calculates and sets the common stem direction of all bar voices. If only one voice exists,
