@@ -6,7 +6,8 @@ package com.example.sheetmusicapp.scoreModel
  * @author Max Wendler
  */
 enum class NoteHeadType{
-    ELLIPTIC
+    ELLIPTIC,
+    CROSS
 }
 
 /**
@@ -36,7 +37,24 @@ class RhythmicInterval(private val length : RhythmicLength, private val noteHead
     var endUnit = startUnit + (length.lengthInUnits - 1)
         private set
 
+    var isCrossed = false
+    init {
+        for (noteHead in noteHeads){
+            if (noteHead.value == NoteHeadType.CROSS) {
+                isCrossed = true
+                if (length.basicLength !in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH, BasicRhythmicLength.QUARTER)){
+                    throw IllegalArgumentException("Cross note head notes are only supported for 16ths, 8ths and quarters!")
+                }
+                break
+            }
+        }
+    }
+
     fun setLength(newLength: RhythmicLength) {
+        if (isCrossed && newLength.basicLength !in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH, BasicRhythmicLength.QUARTER)){
+            throw IllegalArgumentException("Cross note head notes are only supported for 16ths, 8ths and quarters!")
+        }
+
         length.change(newLength)
         endUnit = startUnit + (length.lengthInUnits - 1)
     }
@@ -61,6 +79,10 @@ class RhythmicInterval(private val length : RhythmicLength, private val noteHead
             throw IllegalArgumentException("Height can't be less than 0 or larger than 12!")
         }
 
+        if (type == NoteHeadType.CROSS){
+            isCrossed = true
+        }
+
         // Replaces type of note heads on existing heights.
         noteHeads.put(height, type)
         isRest = false
@@ -77,9 +99,17 @@ class RhythmicInterval(private val length : RhythmicLength, private val noteHead
             throw IllegalArgumentException("Height can't be less than 0 or larger than 12!")
         }
 
+
         // Throw exception if null is returned.
         noteHeads.remove(height) ?: throw IllegalArgumentException("Removal on height where no note exists!")
         isRest = noteHeads.isEmpty()
+        isCrossed = false
+        for (noteHead in noteHeads){
+            if (noteHead.value == NoteHeadType.CROSS) {
+                isCrossed = true
+                break
+            }
+        }
     }
 
     /**
@@ -88,11 +118,8 @@ class RhythmicInterval(private val length : RhythmicLength, private val noteHead
      * @throws IllegalStateException When the interval already is a rest.
      */
     fun makeRest(){
-        if (isRest) throw IllegalStateException("The rhythmic interval already is a rest!")
-        else {
-            noteHeads.clear()
-            isRest = true
-        }
+        noteHeads.clear()
+        isRest = true
     }
 
     companion object {

@@ -341,7 +341,8 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
     private fun visualizeConnectedInterval(interval: RhythmicInterval, subGroupDirection: StemDirection, horizontalMargin: Int, intervalWidth: Double, intervalConnectionToBottomMargin: Int, isLast: Boolean, intervalDoubleConnectionType: IntervalDoubleConnectionType){
 
         // Sort musical note heights of interval, so first will be the one displayed as note with proper stem.
-        val musicalNoteHeights = interval.getNoteHeadsCopy().keys
+        val noteHeads = interval.getNoteHeadsCopy()
+        val musicalNoteHeights = noteHeads.keys
         val sortedMusicalNoteHeights = if (subGroupDirection == StemDirection.UP) (musicalNoteHeights.sortedDescending()).toMutableList() else musicalNoteHeights.sorted().toMutableList()
 
         if (sortedMusicalNoteHeights.isEmpty()){
@@ -355,13 +356,19 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         val isDotted = intervalLength.lengthModifier == LengthModifier.DOTTED
 
         // Visualize remaining notes as note heads.
-        var lastNoteHeadView : ImageView? = null
+        var lastNoteHeadView : NoteView? = null
+        var firstNoteHeadType : NoteHeadType? = null
         var nextIsMirrored : Boolean? = null
         var isMirrored = false
 
         // visualize note heads
         for (i in sortedMusicalNoteHeights.indices) {
             val musicalNoteHeadHeight = sortedMusicalNoteHeights[i]
+            val noteHeadType = noteHeads[musicalNoteHeadHeight]
+                    ?: throw IllegalStateException("noteHeads does not contain an element from sortedMusicalNoteHeights!")
+            if (i == 0){
+                firstNoteHeadType = noteHeadType
+            }
             isMirrored = nextIsMirrored ?: false
             // If two notes are on successive heights, they would overlap. Therefore, one of them needs to be mirrored with the common
             // stem as axis.
@@ -377,7 +384,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             }
             else nextIsMirrored = null
 
-            lastNoteHeadView = createNoteHeadView(intervalLength.basicLength, isMirrored)
+            lastNoteHeadView = createNoteHeadView(intervalLength.basicLength, isMirrored, noteHeadType)
             // Adapt current horizontal margin to mirrored note heads.
             var adaptedHorizontalMargin = horizontalMargin
             if (isMirrored) {
@@ -390,7 +397,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                     adaptedHorizontalMargin -= lastNoteHeadView.layoutParams.width - noteStemWidth
                 }
             }
-            addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin, false)
+            addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin)
             if (isDotted) {
                 if (subGroupDirection == StemDirection.DOWN && !isMirrored) {
                     createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, false)
@@ -410,8 +417,8 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
 
         var commonStemView : ImageView? = null
         // Add common stem for all interval notes.
-        if (lastNoteHeadView != null){
-            commonStemView = addMultiNoteStemForConnection(subGroupDirection, lastNoteHeadView, sortedMusicalNoteHeights.last(), intervalConnectionToBottomMargin, isMirrored)
+        if (lastNoteHeadView != null && firstNoteHeadType != null){
+            commonStemView = addMultiNoteStemForConnection(subGroupDirection, lastNoteHeadView, firstNoteHeadType ,sortedMusicalNoteHeights.last(), intervalConnectionToBottomMargin, isMirrored)
         }
 
         // Add connection to next interval.
@@ -501,30 +508,41 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         val voiceDirection = voice.stemDirection
 
         // Sort musical note heights of interval, so first will be the one displayed as note with proper stem.
-        val musicalNoteHeights = interval.getNoteHeadsCopy().keys
+        val noteHeads = interval.getNoteHeadsCopy()
+        val musicalNoteHeights = noteHeads.keys
         val sortedMusicalNoteHeights = if (subGroupDirection == StemDirection.UP) (musicalNoteHeights.sortedDescending()).toMutableList() else musicalNoteHeights.sorted().toMutableList()
 
         // if null, no notes are contained => display as rest
         val extremumMusicalHeight = sortedMusicalNoteHeights.firstOrNull()
+
         // if not, display as note(s)
         if (extremumMusicalHeight != null) {
 
+            val extremumNoteHeadType = noteHeads[extremumMusicalHeight] ?: throw IllegalStateException("noteHeads does not contain an element from sortedMusicalNoteHeights!")
+
             // create top (for UP) or bottom (for down) note with fully visualized stem
-            val noteView = createNoteView(subGroupDirection, intervalLength.basicLength)
-            addNoteView(noteView, extremumMusicalHeight, subGroupDirection, horizontalMargin, isWhole)
+            val noteView = createNoteView(subGroupDirection, intervalLength.basicLength, extremumNoteHeadType)
+            addNoteView(noteView, extremumMusicalHeight, subGroupDirection, horizontalMargin)
             if (isDotted){
                 createConstrainedNoteDotView(noteView, subGroupDirection, isWhole)
             }
             sortedMusicalNoteHeights.removeAt(0)
 
             // Visualize remaining notes as note heads.
-            var lastNoteHeadView : ImageView? = null
+            var lastNoteHeadView : NoteView? = null
+            var firstNoteHeadType : NoteHeadType? = null
             var nextMusicHeight : Int? = sortedMusicalNoteHeights.firstOrNull()
             var nextIsMirrored = if(nextMusicHeight != null) kotlin.math.abs(nextMusicHeight - extremumMusicalHeight) == 1 else null
             var isMirrored = false
             for (i in sortedMusicalNoteHeights.indices) {
+                val musicalNoteHeadHeight = sortedMusicalNoteHeights[i]
+                val noteHeadType = noteHeads[musicalNoteHeadHeight]
+                        ?: throw IllegalStateException("noteHeads does not contain an element from sortedMusicalNoteHeights!")
+                if (i == 0){
+                    firstNoteHeadType = noteHeadType
+                }
+
                 if (nextIsMirrored != null) {
-                    val musicalNoteHeadHeight = sortedMusicalNoteHeights[i]
                     isMirrored = nextIsMirrored
                     // If two notes are on successive heights, they would overlap. Therefore, one of them needs to be mirrored with the common
                     // stem as axis.
@@ -540,7 +558,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                     }
                     else nextIsMirrored = null
 
-                    lastNoteHeadView = createNoteHeadView(intervalLength.basicLength, isMirrored)
+                    lastNoteHeadView = createNoteHeadView(intervalLength.basicLength, isMirrored, noteHeadType)
                     // Adapt current horizontal margin to mirrored note heads.
                     var adaptedHorizontalMargin = horizontalMargin
                     if (isMirrored) {
@@ -553,7 +571,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                             adaptedHorizontalMargin -= lastNoteHeadView.layoutParams.width - noteStemWidth
                         }
                     }
-                    addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin, isWhole)
+                    addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin)
                     if (isDotted) {
                         if (subGroupDirection == StemDirection.DOWN && !isMirrored) {
                             createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
@@ -578,11 +596,11 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             if (sortedMusicalNoteHeights.size > 0) {
                 if (lastNoteHeadView != null){
                     // Whole notes generally have no stem and therefore also no connecting multi stem.
-                    if (!isWhole) {
+                    if (!isWhole && firstNoteHeadType != null) {
                         if (subGroupDirection == StemDirection.UP) {
-                            addMultiNoteStem(sortedMusicalNoteHeights.last(), extremumMusicalHeight, subGroupDirection, lastNoteHeadView, isMirrored)
+                            addMultiNoteStem(sortedMusicalNoteHeights.last(), extremumMusicalHeight, subGroupDirection, lastNoteHeadView, firstNoteHeadType, isMirrored)
                         } else {
-                            addMultiNoteStem(extremumMusicalHeight, sortedMusicalNoteHeights.last(), subGroupDirection, lastNoteHeadView, isMirrored)
+                            addMultiNoteStem(extremumMusicalHeight, sortedMusicalNoteHeights.last(), subGroupDirection, lastNoteHeadView, firstNoteHeadType, isMirrored)
                         }
                     }
                 }
@@ -604,20 +622,32 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
     /**
      * Creates and returns a note view with a generated id, facing upwards or downwards based on [stemDirection].
      */
-    private fun createNoteView(stemDirection: StemDirection, basicLength: BasicRhythmicLength) : ImageView {
-        val noteView = ImageView(context)
+    private fun createNoteView(stemDirection: StemDirection, basicLength: BasicRhythmicLength, type: NoteHeadType) : NoteView {
+        val noteView = NoteView(context, type, basicLength)
         noteView.id = View.generateViewId()
         // Set height & width of note image.
         val noteHeight = noteHeightFromNodeHeadHeight(basicLength,verticalMusicHeightStep * 2)
-        val noteLayout = ViewGroup.LayoutParams(noteWidthFromHeight(basicLength, noteHeight).toInt(), noteHeight.toInt())
-        noteView.layoutParams = noteLayout
-        noteView.setImageResource(when(basicLength){
-            BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
-            BasicRhythmicLength.HALF -> R.drawable.ic_half
-            BasicRhythmicLength.QUARTER -> R.drawable.ic_quarter
-            BasicRhythmicLength.EIGHTH -> R.drawable.ic_eighth
-            BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_sixteenth
+        noteView.layoutParams = ViewGroup.LayoutParams(noteWidthFromHeight(basicLength, noteHeight, type).toInt(), noteHeight.toInt())
+        noteView.setImageResource(when (type){
+            NoteHeadType.ELLIPTIC -> {
+                when(basicLength){
+                    BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
+                    BasicRhythmicLength.HALF -> R.drawable.ic_half
+                    BasicRhythmicLength.QUARTER -> R.drawable.ic_quarter
+                    BasicRhythmicLength.EIGHTH -> R.drawable.ic_eighth
+                    BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_sixteenth
+                }
+            }
+            NoteHeadType.CROSS -> {
+                when (basicLength){
+                    BasicRhythmicLength.QUARTER -> R.drawable.ic_x_quarter
+                    BasicRhythmicLength.EIGHTH -> R.drawable.ic_x_eighth
+                    BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_x_sixteenth
+                    else -> throw IllegalArgumentException("Crossed notes are only supported for 16ths, 8ths and quarters!")
+                }
+            }
         })
+
         if (stemDirection == StemDirection.DOWN && basicLength !== BasicRhythmicLength.WHOLE){
             noteView.scaleX = -1f
             noteView.scaleY = -1f
@@ -632,14 +662,17 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
      *
      * @throws IllegalStateException When id of this layout has not been set, i.e. generated, because constraining is not possible then.
      */
-    private fun createConstrainedNoteDotView(noteView: ImageView, stemDirection: StemDirection, isWhole: Boolean): ImageView{
+    private fun createConstrainedNoteDotView(noteView: NoteView, stemDirection: StemDirection, isWhole: Boolean): ImageView{
         if (this.id == 0){
             throw IllegalStateException("Can't constrain elements because this instance has no id!")
+        }
+        if (noteView.headType == NoteHeadType.CROSS && isWhole){
+            throw IllegalArgumentException("Crossed notes are not supported for wholes!")
         }
 
         val noteHeadWidth =
                 if (!isWhole) noteHeadWidthForNonWholes
-                else noteWidthFromHeight(BasicRhythmicLength.WHOLE, noteHeadHeight.toDouble()).toInt()
+                else noteWidthFromHeight(BasicRhythmicLength.WHOLE, noteHeadHeight.toDouble(), noteView.headType).toInt()
 
         val dotView = ImageView(context)
         dotView.id = ImageView.generateViewId()
@@ -668,25 +701,44 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         return dotView
     }
 
+    private fun getNoteHeadWidth(type: NoteHeadType, basicLength: BasicRhythmicLength) : Int{
+        return when (type){
+            NoteHeadType.ELLIPTIC -> {
+                if (basicLength != BasicRhythmicLength.WHOLE) noteHeadWidthForNonWholes
+                else noteWidthFromHeight(BasicRhythmicLength.WHOLE, noteHeadHeight.toDouble(), type).toInt()
+            }
+            NoteHeadType.CROSS -> {
+                noteHeadHeight
+            }
+        }
+    }
+
     /**
      * Creates and returns note head view with id potentially mirrored along y-axis.
       */
-    private fun createNoteHeadView(basicLength: BasicRhythmicLength, isMirrored: Boolean): ImageView{
-        val noteHeadView = ImageView(context)
+    private fun createNoteHeadView(basicLength: BasicRhythmicLength, isMirrored: Boolean, type: NoteHeadType): NoteView{
+        val noteHeadView = NoteView(context, type, basicLength)
         noteHeadView.id = View.generateViewId()
         // Set height and width.
-        val noteHeadWidth =
-                if (basicLength != BasicRhythmicLength.WHOLE) noteHeadWidthForNonWholes
-                else noteWidthFromHeight(BasicRhythmicLength.WHOLE, noteHeadHeight.toDouble()).toInt()
+
+        val noteHeadWidth = getNoteHeadWidth(type, basicLength)
+
         noteHeadView.layoutParams = ViewGroup.LayoutParams(noteHeadWidth, noteHeadHeight)
-        noteHeadView.setImageResource(when(basicLength){
-            BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
-            BasicRhythmicLength.HALF -> R.drawable.ic_half_notehead
-            else -> R.drawable.ic_full_notehead
+        noteHeadView.setImageResource(when(type) {
+            NoteHeadType.ELLIPTIC -> {
+                when (basicLength) {
+                    BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
+                    BasicRhythmicLength.HALF -> R.drawable.ic_half_notehead
+                    else -> R.drawable.ic_full_notehead
+                }
+            }
+            NoteHeadType.CROSS -> R.drawable.ic_x_notehead
         })
 
-        if (isMirrored && basicLength != BasicRhythmicLength.WHOLE){
-            noteHeadView.scaleX = -1f
+        if (type != NoteHeadType.CROSS) {
+            if (isMirrored && basicLength != BasicRhythmicLength.WHOLE) {
+                noteHeadView.scaleX = -1f
+            }
         }
 
         return noteHeadView
@@ -767,7 +819,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
      * @throws IllegalArgumentException When [musicalHeight] is not in range 0..12
      * @throws IllegalStateException When id of this layout has not been set, i.e. generated, because constraining is not possible then.
      */
-    private fun addNoteView(noteView: ImageView, musicalHeight: Int, stemDirection: StemDirection, horizontalMargin: Int, isWhole: Boolean) {
+    private fun addNoteView(noteView: NoteView, musicalHeight: Int, stemDirection: StemDirection, horizontalMargin: Int) {
         // error detection
         if (musicalHeight < 0 || musicalHeight > 12) {
             throw IllegalArgumentException("Height can't be less than 0 or larger than 12!")
@@ -776,9 +828,10 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             throw IllegalStateException("Can't constrain view because this instance was not laid out yet.")
         }
 
-        val noteHeadWidth =
-                if (!isWhole) noteHeadWidthForNonWholes
-                else noteWidthFromHeight(BasicRhythmicLength.WHOLE, noteHeadHeight.toDouble()).toInt()
+        val noteHeadWidth = noteView.layoutParams.width
+        if (noteHeadWidth == 0){
+            throw IllegalStateException("Width of noteView's layout parameters hasn't been set!")
+        }
 
         this.addView(noteView)
         val constraintSet = ConstraintSet()
@@ -788,10 +841,15 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         }
         constraintSet.clone(this)
 
+        var horizontalMarginModifier = 0
+        if (noteView.headType == NoteHeadType.CROSS){
+           horizontalMarginModifier = getNoteHeadWidth(NoteHeadType.ELLIPTIC, noteView.basicLength) - noteHeadWidth
+        }
+
         // Handle upwards notes / note heads.
         if (stemDirection == StemDirection.UP){
             // horizontal constraints
-            constraintSet.connect(noteView.id, ConstraintSet.LEFT, this.id, ConstraintSet.LEFT, horizontalMargin)
+            constraintSet.connect(noteView.id, ConstraintSet.LEFT, this.id, ConstraintSet.LEFT, horizontalMargin + horizontalMarginModifier)
             // vertical constraints
             val marginBottomToScreenBottom = (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * musicalHeight).toInt()
             constraintSet.connect(noteView.id, ConstraintSet.BOTTOM, this.id, ConstraintSet.BOTTOM, marginBottomToScreenBottom)
@@ -799,7 +857,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         // Handle downwards notes / note heads.
         else {
             // horizontal constraints
-            constraintSet.connect(noteView.id, ConstraintSet.RIGHT, this.id, ConstraintSet.RIGHT, width - horizontalMargin - noteHeadWidth)
+            constraintSet.connect(noteView.id, ConstraintSet.RIGHT, this.id, ConstraintSet.RIGHT, width - horizontalMargin - noteHeadWidth + horizontalMarginModifier)
             // vertical constraints
             val marginTopToScreenTop = (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * (12 - musicalHeight)).toInt()
             constraintSet.connect(noteView.id, ConstraintSet.TOP, this.id, ConstraintSet.TOP, marginTopToScreenTop)
@@ -911,7 +969,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
      * @throws IllegalArgumentException When one of the musical heights is not in the range 0..12
      * @throws IllegalStateException When id of this layout has not been set, i.e. generated, because constraining is not possible then.
      */
-    private fun addMultiNoteStem(minMusicalHeight: Int, maxMusicalHeight: Int, stemDirection: StemDirection, startNoteHeadView: ImageView, isMirrored: Boolean){
+    private fun addMultiNoteStem(minMusicalHeight: Int, maxMusicalHeight: Int, stemDirection: StemDirection, startNoteHeadView: NoteView, endViewType: NoteHeadType, isMirrored: Boolean){
         if (minMusicalHeight < 0 || minMusicalHeight > 12){
             throw IllegalArgumentException("minMusicalHeight can't be less than 0 or larger than 12!")
         }
@@ -925,7 +983,17 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         val multiNoteStemView = ImageView(context)
         multiNoteStemView.id = View.generateViewId()
         multiNoteStemView.scaleType = ImageView.ScaleType.FIT_XY
-        val newMultiStemHeight = ((maxMusicalHeight - minMusicalHeight) * verticalMusicHeightStep).toInt()
+        var newMultiStemHeight = ((maxMusicalHeight - minMusicalHeight) * verticalMusicHeightStep).toInt()
+        val startNoteHeadType = startNoteHeadView.headType
+        if (startNoteHeadType != endViewType){
+            val stemHeightModifier = noteHeadHeight - noteStemStartHeight
+            when (startNoteHeadType){
+                NoteHeadType.CROSS -> newMultiStemHeight -= stemHeightModifier
+                NoteHeadType.ELLIPTIC -> newMultiStemHeight += stemHeightModifier
+            }
+        }
+        val headTypeStemStartHeight = if (startNoteHeadType == NoteHeadType.ELLIPTIC) noteStemStartHeight else noteHeadHeight
+
         multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight)
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)
 
@@ -933,9 +1001,10 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
+
         // Constrain to bottom of note head.
         if (stemDirection == StemDirection.UP){
-            constraintSet.connect(multiNoteStemView.id, ConstraintSet.BOTTOM, startNoteHeadView.id, ConstraintSet.BOTTOM, noteStemStartHeight)
+            constraintSet.connect(multiNoteStemView.id, ConstraintSet.BOTTOM, startNoteHeadView.id, ConstraintSet.BOTTOM, headTypeStemStartHeight)
             // Constrain to right of note head.
             if (!isMirrored){
                 constraintSet.connect(multiNoteStemView.id, ConstraintSet.RIGHT, startNoteHeadView.id, ConstraintSet.RIGHT)
@@ -947,7 +1016,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         }
         // Constrain to top of note head.
         else {
-            constraintSet.connect(multiNoteStemView.id, ConstraintSet.TOP, startNoteHeadView.id, ConstraintSet.TOP, noteStemStartHeight)
+            constraintSet.connect(multiNoteStemView.id, ConstraintSet.TOP, startNoteHeadView.id, ConstraintSet.TOP, headTypeStemStartHeight)
             // Constrain to left of note head.
             if (!isMirrored){
                 constraintSet.connect(multiNoteStemView.id, ConstraintSet.LEFT, startNoteHeadView.id, ConstraintSet.LEFT)
@@ -960,13 +1029,23 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         constraintSet.applyTo(this)
     }
 
-    private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: ImageView, startMusicHeight: Int, intervalConnectionToBottomMargin: Int, isMirrored: Boolean) : ImageView{
+    private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: NoteView, endViewType: NoteHeadType , startMusicHeight: Int, intervalConnectionToBottomMargin: Int, isMirrored: Boolean) : ImageView{
         val multiNoteStemView = ImageView(context)
         multiNoteStemView.id = View.generateViewId()
         multiNoteStemView.scaleType = ImageView.ScaleType.FIT_XY
-        val newMultiStemHeight =
+        var newMultiStemHeight =
                 if (stemDirection == StemDirection.UP) intervalConnectionToBottomMargin - (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) - noteStemStartHeight
                 else (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) - noteStemStartHeight - intervalConnectionToBottomMargin
+        val startNoteHeadType = startNoteHeadView.headType
+        if (startNoteHeadType != endViewType){
+            val stemHeightModifier = noteHeadHeight - noteStemStartHeight
+            when (startNoteHeadType){
+                NoteHeadType.CROSS -> newMultiStemHeight -= stemHeightModifier
+                NoteHeadType.ELLIPTIC -> newMultiStemHeight += stemHeightModifier
+            }
+        }
+        val headTypeStemStartHeight = if (startNoteHeadType == NoteHeadType.ELLIPTIC) noteStemStartHeight else noteHeadHeight
+
         multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight.toInt())
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)
 
@@ -976,7 +1055,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
 
         // Constrain to bottom of note head.
         if (stemDirection == StemDirection.UP){
-            constraintSet.connect(multiNoteStemView.id, ConstraintSet.BOTTOM, startNoteHeadView.id, ConstraintSet.BOTTOM, noteStemStartHeight)
+            constraintSet.connect(multiNoteStemView.id, ConstraintSet.BOTTOM, startNoteHeadView.id, ConstraintSet.BOTTOM, headTypeStemStartHeight)
             // Constrain to right of note head.
             if (!isMirrored){
                 constraintSet.connect(multiNoteStemView.id, ConstraintSet.RIGHT, startNoteHeadView.id, ConstraintSet.RIGHT)
@@ -988,7 +1067,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         }
         // Constrain to top of note head.
         else {
-            constraintSet.connect(multiNoteStemView.id, ConstraintSet.TOP, startNoteHeadView.id, ConstraintSet.TOP, noteStemStartHeight)
+            constraintSet.connect(multiNoteStemView.id, ConstraintSet.TOP, startNoteHeadView.id, ConstraintSet.TOP, headTypeStemStartHeight)
             // Constrain to left of note head.
             if (!isMirrored){
                 constraintSet.connect(multiNoteStemView.id, ConstraintSet.LEFT, startNoteHeadView.id, ConstraintSet.LEFT)
