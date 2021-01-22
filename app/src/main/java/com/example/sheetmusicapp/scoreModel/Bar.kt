@@ -171,8 +171,8 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
             intervalAtIdx.addNoteHead(height, type)
             if (length.lengthInUnits != intervalAtIdx.getLengthCopy().lengthInUnits){
                 changeIntervalLength(voice.intervals, length, intervalIdx)
-                voice.recalculateSubGroupsFrom(intervalIdx)
             }
+            voice.recalculateSubGroupsFrom(intervalIdx)
             calculateVoiceStemDirections()
         }
     }

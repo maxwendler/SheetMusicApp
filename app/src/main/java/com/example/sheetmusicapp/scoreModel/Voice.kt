@@ -70,6 +70,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
                 currentInterval = intervals[intervalIdx]
             }
             calculatePaddingFactor(currentSubGroup, i)
+            currentSubGroup.calculateConnectedIntervals()
             subGroupAggregator.add(currentSubGroup)
         }
         subGroups = subGroupAggregator.toList()
@@ -163,10 +164,14 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
             throw IllegalArgumentException("Given index exceeds interval list!")
         }
 
+        var firstSubGroupIdx : Int? = null
         for (i in intervalIdx until intervals.size){
             val interval = intervals[i]
             val intervalSubGroupIdx = intervalSubGroupIdxs[interval]
             val newSubGroupIdx = timeSignature.calculateSubGroup(interval)
+            if (i == intervalIdx){
+                firstSubGroupIdx = newSubGroupIdx
+            }
 
             // Only add: When interval was not part of a sub group before, i.e. was newly added.
             if (intervalSubGroupIdx == null){
@@ -185,16 +190,20 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
         }
 
         // Recalculate padding factor and remove assigned intervals that were removed from this.intervals for all sub groups.
-        for (i in subGroups.indices){
-            val currentSubGroup = subGroups[i]
-            currentSubGroup.getCopyOfIntervals().forEach { interval ->
-                if (!intervals.contains(interval)){
-                    currentSubGroup.remove(interval)
-                    intervalSubGroupIdxs.remove(interval)
+        if (firstSubGroupIdx != null) {
+            for (i in firstSubGroupIdx until subGroups.size) {
+                val currentSubGroup = subGroups[i]
+                currentSubGroup.getCopyOfIntervals().forEach { interval ->
+                    if (!intervals.contains(interval)) {
+                        currentSubGroup.remove(interval)
+                        intervalSubGroupIdxs.remove(interval)
+                    }
                 }
+                calculatePaddingFactor(currentSubGroup, i)
+                currentSubGroup.calculateConnectedIntervals()
             }
-            calculatePaddingFactor(currentSubGroup, i)
         }
+        else throw IllegalStateException("The interval at the given idx is not part of a subgroup!")
     }
 }
 
@@ -216,6 +225,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
 
     var paddingFactor : Int = 0
     var lastInterval : RhythmicInterval? = null
+    val connectedIntervals : MutableList<MutableList<RhythmicInterval>> = mutableListOf()
 
     init {
         // Error detection
@@ -317,6 +327,59 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
             throw IllegalArgumentException("The given interval is not part of the sub group!")
         }
         return interval == lastInterval
+    }
+
+    fun calculateConnectedIntervals(){
+        connectedIntervals.clear()
+        var newConnectedList = mutableListOf<RhythmicInterval>()
+        val sortedIntervals = intervals.sortedBy { it.endUnit }
+        for (interval in sortedIntervals){
+            if (interval.isRest){
+                if (newConnectedList.isNotEmpty()){
+                    connectedIntervals.add(newConnectedList)
+                    newConnectedList = mutableListOf<RhythmicInterval>()
+                }
+            }
+            else {
+                val length = interval.getLengthCopy()
+                if (newConnectedList.isEmpty()) {
+                    if (length.basicLength in listOf(BasicRhythmicLength.EIGHTH, BasicRhythmicLength.SIXTEENTH)) {
+                        newConnectedList.add(interval)
+                    }
+                } else {
+                    val lastConnectedLength = newConnectedList.last().getLengthCopy()
+                    when (lastConnectedLength.lengthInUnits) {
+                        RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits ->
+                            if (length.lengthInUnits in listOf(RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits, RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits)) {
+                                newConnectedList.add(interval)
+                            } else {
+                                connectedIntervals.add(newConnectedList)
+                                newConnectedList = mutableListOf<RhythmicInterval>()
+                            }
+                        RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED).lengthInUnits ->
+                            if (length.lengthInUnits == RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits) {
+                                newConnectedList.add(interval)
+                            } else {
+                                connectedIntervals.add(newConnectedList)
+                                newConnectedList = mutableListOf<RhythmicInterval>()
+                            }
+                        RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits ->
+                            if (length.lengthInUnits in listOf(RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits,
+                                            RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits,
+                                            RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED))) {
+                                newConnectedList.add(interval)
+                            } else {
+                                connectedIntervals.add(newConnectedList)
+                                newConnectedList = mutableListOf<RhythmicInterval>()
+                            }
+                    }
+                }
+            }
+        }
+
+        if (newConnectedList.isNotEmpty()){
+            connectedIntervals.add(newConnectedList)
+        }
     }
 
 }

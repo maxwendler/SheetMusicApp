@@ -1,18 +1,25 @@
 package com.example.sheetmusicapp.ui
 
 import android.content.Context
-import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import androidx.annotation.RequiresApi
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import com.example.sheetmusicapp.R
 import com.example.sheetmusicapp.scoreModel.*
-import java.lang.IllegalStateException
+import kotlin.IllegalStateException
 import kotlin.math.round
+
+enum class IntervalDoubleConnectionType {
+    DOUBLE,
+    NONE,
+    ONE_THIRD_START,
+    ONE_THIRD_END,
+    ONE_QUARTER_END
+}
+
 
 const val noteHeightToNoteHeadHeightRatio = 1 / 0.2741
 
@@ -171,13 +178,14 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             var horizontalMargin = (width * (BAR_LEFTRIGHT_PADDING_PERCENT / 2))
             val horizontalMargins = mutableListOf<Int>()
 
+            var connectedIntervalCount = 0
+            var intervalConnectionToBottomMargin = 0
+            var intervalConnectionGroup : MutableList<RhythmicInterval>? = null
+
             for (interval in voice.intervals){
 
                 val horizontalMarginInt = horizontalMargin.toInt()
                 horizontalMargins.add(horizontalMarginInt)
-                val intervalLength = interval.getLengthCopy()
-                val isDotted =  intervalLength.lengthModifier == LengthModifier.DOTTED
-                val isWhole = intervalLength.basicLength == BasicRhythmicLength.WHOLE
 
                 // Find subgroup of interval.
                 val intervalSubGroupIdx : Int = intervalSubGroupIdxs[interval] ?: throw IllegalStateException("No subgroup was mapped for an interval in a voice!")
@@ -187,111 +195,45 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                 val subGroup : SubGroup = subGroups[intervalSubGroupIdx]
                 // If there's a voice direction, use this for the subgroup, otherwise let subgroup decide.
                 val subGroupDirection = voiceDirection ?: subGroup.getStemDirection()
+                ?: throw IllegalStateException("Subgroup provides no common stem direction even though it has notes!")
 
                 val intervalWidth : Double = noteAreaWidth * calculateWidthPercent(interval, subGroup, voice.timeSignature)
 
-                // Sort musical note heights of interval, so first will be the one displayed as note with proper stem.
-                val musicalNoteHeights = interval.getNoteHeadsCopy().keys
-                val sortedMusicalNoteHeights = if (subGroupDirection == StemDirection.UP) (musicalNoteHeights.sortedDescending()).toMutableList() else musicalNoteHeights.sorted().toMutableList()
-
-                // if null, no notes are contained => display as rest
-                val extremumMusicalHeight = sortedMusicalNoteHeights.firstOrNull()
-                // if not, display as note(s)
-                if (extremumMusicalHeight != null) {
-
-                    if (subGroupDirection == null){
-                        throw IllegalStateException("Subgroup provides no common stem direction even though it has notes!")
-                    }
-
-                    // create top (for UP) or bottom (for down) note with fully visualized stem
-                    val noteView = createNoteView(subGroupDirection, intervalLength.basicLength)
-                    addNoteView(noteView, extremumMusicalHeight, subGroupDirection, horizontalMarginInt, isWhole)
-                    if (isDotted){
-                        createConstrainedNoteDotView(noteView, subGroupDirection, isWhole)
-                    }
-                    sortedMusicalNoteHeights.removeAt(0)
-
-                    // Visualize remaining notes as note heads.
-                    var lastNoteHeadView : ImageView? = null
-                    var nextMusicHeight : Int? = sortedMusicalNoteHeights.firstOrNull()
-                    var nextIsMirrored = if(nextMusicHeight != null) kotlin.math.abs(nextMusicHeight - extremumMusicalHeight) == 1 else null
-                    var isMirrored = false
-                    for (i in sortedMusicalNoteHeights.indices) {
-                        if (nextIsMirrored != null) {
-                            val musicalNoteHeadHeight = sortedMusicalNoteHeights[i]
-                            isMirrored = nextIsMirrored
-                            // If two notes are on successive heights, they would overlap. Therefore, one of them needs to be mirrored with the common
-                            // stem as axis.
-
-                            if (i + 1 < sortedMusicalNoteHeights.size) {
-                                nextMusicHeight = sortedMusicalNoteHeights[i + 1]
-                                if (kotlin.math.abs(nextMusicHeight - musicalNoteHeadHeight) == 1) {
-                                    nextIsMirrored = !isMirrored
-                                }
-                                else {
-                                    nextIsMirrored = false
-                                }
-                            }
-                            else nextIsMirrored = null
-
-                            lastNoteHeadView = createNoteHeadView(intervalLength.basicLength, isMirrored)
-                            // Adapt current horizontal margin to mirrored note heads.
-                            var adaptedHorizontalMargin = horizontalMarginInt
-                            if (isMirrored) {
-                                // increase margin because mirroring moves note head from left to right of stem
-                                if (subGroupDirection == StemDirection.UP) {
-                                    adaptedHorizontalMargin += lastNoteHeadView.layoutParams.width - noteStemWidth
-                                }
-                                // decrease margin because mirroring moves note head from right to left of stem
-                                else {
-                                    adaptedHorizontalMargin -= lastNoteHeadView.layoutParams.width - noteStemWidth
-                                }
-                            }
-                            addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin, isWhole)
-                            if (isDotted) {
-                                if (subGroupDirection == StemDirection.DOWN && !isMirrored) {
-                                    createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
-                                }
-                                else if (subGroupDirection == StemDirection.UP) {
-                                    if (nextIsMirrored != null) {
-                                        if (!nextIsMirrored) {
-                                            createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
-                                        }
-                                    }
-                                    else {
-                                        if (isMirrored) {
-                                            createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
-                                        }
-                                    }
-                                }
+                if (connectedIntervalCount == 0){
+                    intervalConnectionGroup = null
+                    if (subGroup.connectedIntervals.isNotEmpty()) {
+                        for (intervalGroup in subGroup.connectedIntervals){
+                            if (intervalGroup.contains(interval)) {
+                                intervalConnectionGroup = intervalGroup
+                                break
                             }
                         }
-                    }
 
-                    // Add common stem for all note intervals.
-                    if (sortedMusicalNoteHeights.size > 0) {
-                        if (lastNoteHeadView != null){
-                            // Whole notes generally have no stem and therefore also no connecting multi stem.
-                            if (!isWhole) {
-                                if (subGroupDirection == StemDirection.UP) {
-                                    addMultiNoteStem(sortedMusicalNoteHeights.last(), extremumMusicalHeight, subGroupDirection, lastNoteHeadView, isMirrored)
-                                } else {
-                                    addMultiNoteStem(extremumMusicalHeight, sortedMusicalNoteHeights.last(), subGroupDirection, lastNoteHeadView, isMirrored)
-                                }
+                        if (intervalConnectionGroup != null){
+
+                            if (intervalConnectionGroup.size == 1){
+                                throw IllegalStateException("A group of connected intervals must be of size 2 or larger!")
                             }
+
+                            intervalConnectionToBottomMargin = calculateIntervalConnectionToBottomMargin(intervalConnectionGroup, subGroupDirection)
+                            visualizeConnectedInterval(interval, subGroupDirection, horizontalMarginInt, intervalWidth, intervalConnectionToBottomMargin, false, calculateIntervalDoubleConnectionType(interval, intervalConnectionGroup))
+                            connectedIntervalCount = intervalConnectionGroup.size - 1
                         }
                         else {
-                            // won't happen
+                            visualizeUnconnectedInterval(interval, intervalWidth, subGroupDirection, voice, horizontalMarginInt)
                         }
                     }
-
-                } else {
-                    // Visualize as rest.
-                    val restView = createRestView(intervalLength.basicLength)
-                    addRestView(restView, if (voiceDirection == null) null else voice.getAvgNoteHeight(), intervalLength.basicLength, intervalWidth, horizontalMarginInt)
-                    if (isDotted) {
-                        createConstrainedRestDotView(restView, intervalLength.basicLength)
+                    else {
+                        visualizeUnconnectedInterval(interval, intervalWidth, subGroupDirection, voice, horizontalMarginInt)
                     }
+                }
+                else {
+                    val isLast = connectedIntervalCount == 1
+                    if (intervalConnectionGroup == null){
+                        throw IllegalStateException("IntervalConnectionGroup is null even though not all intervals of the group were visualized, according to connectedIntervalCount.")
+                    }
+                    visualizeConnectedInterval(interval, subGroupDirection, horizontalMarginInt, intervalWidth, intervalConnectionToBottomMargin, isLast, calculateIntervalDoubleConnectionType(interval, intervalConnectionGroup))
+                    connectedIntervalCount--
                 }
 
                 // Increase horizontal margin according to rhythmic interval length
@@ -299,7 +241,364 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             }
             editingOverlayCallback?.invoke(horizontalMargins, voicePair.key)
         }
+    }
 
+    private fun calculateIntervalDoubleConnectionType(interval: RhythmicInterval, connectionGroup: MutableList<RhythmicInterval>) : IntervalDoubleConnectionType {
+        val intervalIdx = connectionGroup.indexOf(interval)
+        if (intervalIdx == -1){
+            throw IllegalArgumentException("The given interval is not part of the given connection group!")
+        }
+
+        var intervalDoubleConnectionType : IntervalDoubleConnectionType? = null
+
+        if (intervalIdx == connectionGroup.size - 1){
+            intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
+        }
+        else {
+            val intervalLength = interval.getLengthCopy()
+            val nextInterval = connectionGroup[intervalIdx + 1]
+            when (intervalLength.lengthInUnits){
+                RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits -> {
+                    when (nextInterval.getLengthCopy().lengthInUnits){
+                        RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits -> {
+                            intervalDoubleConnectionType = IntervalDoubleConnectionType.DOUBLE
+                        }
+                        RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits, RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED).lengthInUnits -> {
+                            if (intervalIdx - 1 < 0){
+                                intervalDoubleConnectionType =  IntervalDoubleConnectionType.ONE_THIRD_START
+                            }
+                            else {
+                                val previousInterval = connectionGroup[intervalIdx - 1]
+                                if (previousInterval.getLengthCopy().lengthInUnits != RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits){
+                                    intervalDoubleConnectionType = IntervalDoubleConnectionType.ONE_THIRD_START
+                                }
+                                else {
+                                    intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
+                                }
+                            }
+                        }
+                        else -> intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
+                    }
+                }
+                RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits -> {
+                    when (nextInterval.getLengthCopy().lengthInUnits){
+                        RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits -> {
+                            if (intervalIdx + 2 < connectionGroup.size){
+                                val nextIntervalSuccessor = connectionGroup[intervalIdx + 2]
+                                if (nextIntervalSuccessor.getLengthCopy().lengthInUnits != RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits){
+                                    intervalDoubleConnectionType = IntervalDoubleConnectionType.ONE_THIRD_END
+                                }
+                                else intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
+                            }
+                            else intervalDoubleConnectionType = IntervalDoubleConnectionType.ONE_THIRD_END
+                        }
+                        else -> intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
+                    }
+                }
+                RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED).lengthInUnits -> {
+                    when (nextInterval.getLengthCopy().lengthInUnits){
+                        RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits -> {
+                            intervalDoubleConnectionType = IntervalDoubleConnectionType.ONE_QUARTER_END
+                        }
+                        else -> intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
+                    }
+                }
+                else -> throw IllegalStateException("Interval connection group has an interval with length which does not lead to connections!")
+            }
+        }
+
+        if (intervalDoubleConnectionType == null){
+            throw IllegalStateException("None of the available double connection types was decided on!")
+        }
+        return intervalDoubleConnectionType
+    }
+
+    private fun calculateIntervalConnectionToBottomMargin(connectedIntervals: MutableList<RhythmicInterval>, stemDirection: StemDirection) : Int{
+        if (stemDirection == StemDirection.UP){
+            var maxMusicHeight = -1
+            for (interval in connectedIntervals){
+                val localMaxMusicHeight = interval.getNoteHeadsCopy().keys.maxOrNull() ?: throw IllegalStateException("An interval without note heads is a rest, which shouldn't have connections!")
+                if (localMaxMusicHeight >= maxMusicHeight) {
+                    maxMusicHeight = localMaxMusicHeight
+                }
+            }
+            return (smallestMusicHeightToBottomMargin + maxMusicHeight * verticalMusicHeightStep +
+                    noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2)).toInt()
+        }
+        else {
+            var minMusicHeight = 13
+            for (interval in connectedIntervals){
+                val localMinMusicHeight : Int = interval.getNoteHeadsCopy().keys.minOrNull() ?: throw IllegalStateException("An interval without note heads is a rest, which shouldn't have connections!")
+                if (localMinMusicHeight <= minMusicHeight){
+                    minMusicHeight = localMinMusicHeight
+                }
+            }
+            return (smallestMusicHeightToBottomMargin + (minMusicHeight + 1) * verticalMusicHeightStep -
+                    noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2)).toInt()
+        }
+    }
+
+    private fun visualizeConnectedInterval(interval: RhythmicInterval, subGroupDirection: StemDirection, horizontalMargin: Int, intervalWidth: Double, intervalConnectionToBottomMargin: Int, isLast: Boolean, intervalDoubleConnectionType: IntervalDoubleConnectionType){
+
+        // Sort musical note heights of interval, so first will be the one displayed as note with proper stem.
+        val musicalNoteHeights = interval.getNoteHeadsCopy().keys
+        val sortedMusicalNoteHeights = if (subGroupDirection == StemDirection.UP) (musicalNoteHeights.sortedDescending()).toMutableList() else musicalNoteHeights.sorted().toMutableList()
+
+        if (sortedMusicalNoteHeights.isEmpty()){
+            throw IllegalStateException("Interval is a rest, which should have no connections!")
+        }
+
+        val intervalLength = interval.getLengthCopy()
+        if (intervalLength.basicLength !in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH)){
+            throw IllegalArgumentException("The given interval is not an eighth or sixteenth. Only those should be connected!")
+        }
+        val isDotted = intervalLength.lengthModifier == LengthModifier.DOTTED
+
+        // Visualize remaining notes as note heads.
+        var lastNoteHeadView : ImageView? = null
+        var nextIsMirrored : Boolean? = null
+        var isMirrored = false
+
+        // visualize note heads
+        for (i in sortedMusicalNoteHeights.indices) {
+            val musicalNoteHeadHeight = sortedMusicalNoteHeights[i]
+            isMirrored = nextIsMirrored ?: false
+            // If two notes are on successive heights, they would overlap. Therefore, one of them needs to be mirrored with the common
+            // stem as axis.
+
+            if (i + 1 < sortedMusicalNoteHeights.size) {
+                val nextMusicHeight = sortedMusicalNoteHeights[i + 1]
+                if (kotlin.math.abs(nextMusicHeight - musicalNoteHeadHeight) == 1) {
+                    nextIsMirrored = !isMirrored
+                }
+                else {
+                    nextIsMirrored = false
+                }
+            }
+            else nextIsMirrored = null
+
+            lastNoteHeadView = createNoteHeadView(intervalLength.basicLength, isMirrored)
+            // Adapt current horizontal margin to mirrored note heads.
+            var adaptedHorizontalMargin = horizontalMargin
+            if (isMirrored) {
+                // increase margin because mirroring moves note head from left to right of stem
+                if (subGroupDirection == StemDirection.UP) {
+                    adaptedHorizontalMargin += lastNoteHeadView.layoutParams.width - noteStemWidth
+                }
+                // decrease margin because mirroring moves note head from right to left of stem
+                else {
+                    adaptedHorizontalMargin -= lastNoteHeadView.layoutParams.width - noteStemWidth
+                }
+            }
+            addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin, false)
+            if (isDotted) {
+                if (subGroupDirection == StemDirection.DOWN && !isMirrored) {
+                    createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, false)
+                }
+                else if (subGroupDirection == StemDirection.UP) {
+                    if (nextIsMirrored != null) {
+                        if (!nextIsMirrored) {
+                            createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, false)
+                        }
+                    }
+                    else {
+                        createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, false)
+                    }
+                }
+            }
+        }
+
+        var commonStemView : ImageView? = null
+        // Add common stem for all interval notes.
+        if (lastNoteHeadView != null){
+            commonStemView = addMultiNoteStemForConnection(subGroupDirection, lastNoteHeadView, sortedMusicalNoteHeights.last(), intervalConnectionToBottomMargin, isMirrored)
+        }
+
+        // Add connection to next interval.
+        if (commonStemView != null) {
+            if (!isLast) {
+                addConnectionToNextInterval(commonStemView, intervalWidth, subGroupDirection, intervalDoubleConnectionType)
+            }
+        }
+    }
+
+    private fun addConnectionToNextInterval(currentIntervalStemView: ImageView, intervalWidth: Double, subGroupDirection: StemDirection, doubleConnectionType: IntervalDoubleConnectionType){
+        val connectionStrokeWidth = noteStemWidth * 2
+        val connectionWidth = intervalWidth.toInt()
+
+        val connectionView = ImageView(context)
+        connectionView.id = View.generateViewId()
+        connectionView.scaleType = ImageView.ScaleType.FIT_XY
+        connectionView.layoutParams = ViewGroup.LayoutParams(connectionWidth, connectionStrokeWidth)
+        connectionView.setImageResource(R.drawable.black_rectangle)
+        addView(connectionView)
+
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(this)
+        constraintSet.connect(connectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT)
+        if (subGroupDirection == StemDirection.UP){
+            constraintSet.connect(connectionView.id, ConstraintSet.TOP, currentIntervalStemView.id, ConstraintSet.TOP)
+        }
+        else {
+            constraintSet.connect(connectionView.id, ConstraintSet.BOTTOM, currentIntervalStemView.id, ConstraintSet.BOTTOM)
+        }
+        constraintSet.applyTo(this)
+
+        if (doubleConnectionType != IntervalDoubleConnectionType.NONE) {
+
+            val secondConnectionView = ImageView(context)
+            secondConnectionView.id = generateViewId()
+            secondConnectionView.scaleType = ImageView.ScaleType.FIT_XY
+
+            when (doubleConnectionType) {
+                IntervalDoubleConnectionType.DOUBLE -> {
+                    secondConnectionView.layoutParams = LayoutParams(connectionWidth, connectionStrokeWidth)
+                    secondConnectionView.setImageResource(R.drawable.black_rectangle)
+                    addView(secondConnectionView)
+
+                    constraintSet.clone(this)
+                    constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT)
+                }
+                IntervalDoubleConnectionType.ONE_THIRD_START -> {
+                    secondConnectionView.layoutParams = LayoutParams((intervalWidth / 3).toInt(), connectionStrokeWidth)
+                    secondConnectionView.setImageResource(R.drawable.black_rectangle)
+                    addView(secondConnectionView)
+
+                    constraintSet.clone(this)
+                    constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT)
+                }
+                IntervalDoubleConnectionType.ONE_THIRD_END -> {
+                    secondConnectionView.layoutParams = LayoutParams((intervalWidth / 3).toInt(), connectionStrokeWidth)
+                    secondConnectionView.setImageResource(R.drawable.black_rectangle)
+                    addView(secondConnectionView)
+
+                    constraintSet.clone(this)
+                    constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT, (intervalWidth * 2 / 3.0).toInt())
+                }
+                IntervalDoubleConnectionType.ONE_QUARTER_END -> {
+                    secondConnectionView.layoutParams = LayoutParams((intervalWidth / 4).toInt(), connectionStrokeWidth)
+                    secondConnectionView.setImageResource(R.drawable.black_rectangle)
+                    addView(secondConnectionView)
+
+                    constraintSet.clone(this)
+                    constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT, (intervalWidth * 3 / 4.0).toInt())
+                }
+            }
+
+            if (subGroupDirection == StemDirection.UP) {
+                constraintSet.connect(secondConnectionView.id, ConstraintSet.TOP, connectionView.id, ConstraintSet.BOTTOM, connectionStrokeWidth / 2)
+            } else {
+                constraintSet.connect(secondConnectionView.id, ConstraintSet.BOTTOM, connectionView.id, ConstraintSet.TOP, connectionStrokeWidth / 2)
+            }
+            constraintSet.applyTo(this)
+        }
+    }
+
+    private fun visualizeUnconnectedInterval(interval: RhythmicInterval, intervalWidth : Double, subGroupDirection: StemDirection, voice: Voice, horizontalMargin: Int){
+        val intervalLength = interval.getLengthCopy()
+        val isWhole = intervalLength.basicLength == BasicRhythmicLength.WHOLE
+        val isDotted = intervalLength.lengthModifier ==  LengthModifier.DOTTED
+        val voiceDirection = voice.stemDirection
+
+        // Sort musical note heights of interval, so first will be the one displayed as note with proper stem.
+        val musicalNoteHeights = interval.getNoteHeadsCopy().keys
+        val sortedMusicalNoteHeights = if (subGroupDirection == StemDirection.UP) (musicalNoteHeights.sortedDescending()).toMutableList() else musicalNoteHeights.sorted().toMutableList()
+
+        // if null, no notes are contained => display as rest
+        val extremumMusicalHeight = sortedMusicalNoteHeights.firstOrNull()
+        // if not, display as note(s)
+        if (extremumMusicalHeight != null) {
+
+            // create top (for UP) or bottom (for down) note with fully visualized stem
+            val noteView = createNoteView(subGroupDirection, intervalLength.basicLength)
+            addNoteView(noteView, extremumMusicalHeight, subGroupDirection, horizontalMargin, isWhole)
+            if (isDotted){
+                createConstrainedNoteDotView(noteView, subGroupDirection, isWhole)
+            }
+            sortedMusicalNoteHeights.removeAt(0)
+
+            // Visualize remaining notes as note heads.
+            var lastNoteHeadView : ImageView? = null
+            var nextMusicHeight : Int? = sortedMusicalNoteHeights.firstOrNull()
+            var nextIsMirrored = if(nextMusicHeight != null) kotlin.math.abs(nextMusicHeight - extremumMusicalHeight) == 1 else null
+            var isMirrored = false
+            for (i in sortedMusicalNoteHeights.indices) {
+                if (nextIsMirrored != null) {
+                    val musicalNoteHeadHeight = sortedMusicalNoteHeights[i]
+                    isMirrored = nextIsMirrored
+                    // If two notes are on successive heights, they would overlap. Therefore, one of them needs to be mirrored with the common
+                    // stem as axis.
+
+                    if (i + 1 < sortedMusicalNoteHeights.size) {
+                        nextMusicHeight = sortedMusicalNoteHeights[i + 1]
+                        if (kotlin.math.abs(nextMusicHeight - musicalNoteHeadHeight) == 1) {
+                            nextIsMirrored = !isMirrored
+                        }
+                        else {
+                            nextIsMirrored = false
+                        }
+                    }
+                    else nextIsMirrored = null
+
+                    lastNoteHeadView = createNoteHeadView(intervalLength.basicLength, isMirrored)
+                    // Adapt current horizontal margin to mirrored note heads.
+                    var adaptedHorizontalMargin = horizontalMargin
+                    if (isMirrored) {
+                        // increase margin because mirroring moves note head from left to right of stem
+                        if (subGroupDirection == StemDirection.UP) {
+                            adaptedHorizontalMargin += lastNoteHeadView.layoutParams.width - noteStemWidth
+                        }
+                        // decrease margin because mirroring moves note head from right to left of stem
+                        else {
+                            adaptedHorizontalMargin -= lastNoteHeadView.layoutParams.width - noteStemWidth
+                        }
+                    }
+                    addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin, isWhole)
+                    if (isDotted) {
+                        if (subGroupDirection == StemDirection.DOWN && !isMirrored) {
+                            createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
+                        }
+                        else if (subGroupDirection == StemDirection.UP) {
+                            if (nextIsMirrored != null) {
+                                if (!nextIsMirrored) {
+                                    createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
+                                }
+                            }
+                            else {
+                                if (isMirrored) {
+                                    createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Add common stem for all note intervals.
+            if (sortedMusicalNoteHeights.size > 0) {
+                if (lastNoteHeadView != null){
+                    // Whole notes generally have no stem and therefore also no connecting multi stem.
+                    if (!isWhole) {
+                        if (subGroupDirection == StemDirection.UP) {
+                            addMultiNoteStem(sortedMusicalNoteHeights.last(), extremumMusicalHeight, subGroupDirection, lastNoteHeadView, isMirrored)
+                        } else {
+                            addMultiNoteStem(extremumMusicalHeight, sortedMusicalNoteHeights.last(), subGroupDirection, lastNoteHeadView, isMirrored)
+                        }
+                    }
+                }
+                else {
+                    // won't happen
+                }
+            }
+
+        } else {
+            // Visualize as rest.
+            val restView = createRestView(intervalLength.basicLength)
+            addRestView(restView, if (voiceDirection == null) null else voice.getAvgNoteHeight(), intervalLength.basicLength, intervalWidth, horizontalMargin)
+            if (isDotted) {
+                createConstrainedRestDotView(restView, intervalLength.basicLength)
+            }
+        }
     }
 
     /**
@@ -661,7 +960,47 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         constraintSet.applyTo(this)
     }
 
+    private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: ImageView, startMusicHeight: Int, intervalConnectionToBottomMargin: Int, isMirrored: Boolean) : ImageView{
+        val multiNoteStemView = ImageView(context)
+        multiNoteStemView.id = View.generateViewId()
+        multiNoteStemView.scaleType = ImageView.ScaleType.FIT_XY
+        val newMultiStemHeight =
+                if (stemDirection == StemDirection.UP) intervalConnectionToBottomMargin - (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) - noteStemStartHeight
+                else (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) - noteStemStartHeight - intervalConnectionToBottomMargin
+        multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight.toInt())
+        multiNoteStemView.setImageResource(R.drawable.black_rectangle)
 
+        this.addView(multiNoteStemView)
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(this)
+
+        // Constrain to bottom of note head.
+        if (stemDirection == StemDirection.UP){
+            constraintSet.connect(multiNoteStemView.id, ConstraintSet.BOTTOM, startNoteHeadView.id, ConstraintSet.BOTTOM, noteStemStartHeight)
+            // Constrain to right of note head.
+            if (!isMirrored){
+                constraintSet.connect(multiNoteStemView.id, ConstraintSet.RIGHT, startNoteHeadView.id, ConstraintSet.RIGHT)
+            }
+            // Constrain to left of note head.
+            else {
+                constraintSet.connect(multiNoteStemView.id, ConstraintSet.LEFT, startNoteHeadView.id, ConstraintSet.LEFT)
+            }
+        }
+        // Constrain to top of note head.
+        else {
+            constraintSet.connect(multiNoteStemView.id, ConstraintSet.TOP, startNoteHeadView.id, ConstraintSet.TOP, noteStemStartHeight)
+            // Constrain to left of note head.
+            if (!isMirrored){
+                constraintSet.connect(multiNoteStemView.id, ConstraintSet.LEFT, startNoteHeadView.id, ConstraintSet.LEFT)
+            }
+            // Constrain to right of note head.
+            else {
+                constraintSet.connect(multiNoteStemView.id, ConstraintSet.RIGHT, startNoteHeadView.id, ConstraintSet.RIGHT)
+            }
+        }
+        constraintSet.applyTo(this)
+        return multiNoteStemView
+    }
 
     /**
      * Calculates the percentage of note area width an [interval] of a certain [RhythmicLength] should take up, based
