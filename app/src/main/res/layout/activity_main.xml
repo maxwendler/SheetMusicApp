@@ -9,28 +9,30 @@
     android:id="@+id/main">
 
     <Button
-        android:id="@+id/button"
+        android:id="@+id/button_file_open"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Open File"
+        android:text="Open"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintHorizontal_bias="0.136"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0" />
 
     <Button
-        android:id="@+id/button2"
+        android:id="@+id/button_file_save"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Save File"
+        android:text="Save"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintHorizontal_bias="0.136"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.0" />
+        app:layout_constraintVertical_bias="0.132" />
 
     <Button
         android:id="@+id/voiceNumButton"
@@ -40,5 +42,13 @@
         android:text="1"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/button_file"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:text="File"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
