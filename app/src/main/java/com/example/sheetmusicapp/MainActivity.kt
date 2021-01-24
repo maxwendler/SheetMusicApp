@@ -12,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
+import androidx.core.view.isVisible
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
@@ -71,7 +72,19 @@ class MainActivity : AppCompatActivity() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun initButtonGroups() {
-        val openFileButton: Button = findViewById(R.id.button)
+        val fileButton: Button = findViewById(R.id.button_file)
+        val openFileButton: Button = findViewById(R.id.button_file_open)
+        val saveFileButton: Button = findViewById(R.id.button_file_save)
+        fileButton.setOnClickListener {
+            if (openFileButton.isVisible) {
+                openFileButton.visibility = View.GONE
+                saveFileButton.visibility = View.GONE
+            } else {
+                openFileButton.visibility = View.VISIBLE
+                saveFileButton.visibility = View.VISIBLE
+            }
+
+        }
         openFileButton.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
@@ -79,7 +92,7 @@ class MainActivity : AppCompatActivity() {
             }
             startActivityForResult(intent, PICK_FILE)
         }
-        val saveFileButton: Button = findViewById(R.id.button2)
+
         saveFileButton.setOnClickListener {
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
