@@ -1,9 +1,12 @@
 package com.example.sheetmusicapp.ui
 
 import android.content.Context
+import android.media.Image
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.WebSettings
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
@@ -11,6 +14,7 @@ import com.example.sheetmusicapp.R
 import com.example.sheetmusicapp.scoreModel.*
 import kotlin.IllegalStateException
 import kotlin.math.round
+import kotlin.math.max
 
 enum class IntervalDoubleConnectionType {
     DOUBLE,
@@ -45,10 +49,20 @@ const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.15
 const val BAR_NOTES_PERCENT = 1 - BAR_LEFTRIGHT_PADDING_PERCENT
 const val WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT = 0.025
 
-class BarVisLayout(context: Context, private val barHeightPercentage: Double, val bar: Bar) : ConstraintLayout(context) {
+class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) : ConstraintLayout(context) {
 
-    // bar height from screen height via barHeightPercentage
-    private var barHeight : Int = 0
+    var bar : Bar = initBar
+        set(value) {
+            barDetailViews.forEach {
+                removeView(it)
+            }
+            field = value
+            visualizeBar()
+        }
+    private val barDetailViews : MutableList<ImageView> = mutableListOf()
+    private var barView: BarDrawableView? = null
+    private var barNrView : TextView? = null
+
     // bar height without stroke width outside of rectangle path (notes on horizontal stroke middle!)
     private var trueBarHeight : Int = 0
     // width of bar without padding on left and right bar side
@@ -78,13 +92,19 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         // dynamically add content after this was laid out
         doOnLayout {
             calculateElementParams()
-            addBarView()
+            barView = addBarView()
+            barNrView = addBarNrView()
             visualizeBar()
         }
     }
 
     fun setEditingOverlayCallback(callback: ((MutableList<Int>, Int) -> Unit)) {
         editingOverlayCallback = callback
+    }
+
+    private fun addBarDetailView(view: ImageView){
+        barDetailViews.add(view)
+        super.addView(view)
     }
 
     /**
@@ -95,8 +115,6 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         if (height == 0 || width == 0){
             throw IllegalStateException("Parameters of elements can't be fully calculated because width or height is 0!")
         }
-
-        barHeight = (height * barHeightPercentage).toInt()
 
         // make sure that stroke width is dividable by 2, so positions of stroke centres can actually
         // be calculated in terms of pixels
@@ -135,7 +153,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
      *
      * @throws IllegalStateException When id of this layout has not been set, i.e. generated, because constraining is not possible then.
      */
-    private fun addBarView(){
+    private fun addBarView() : BarDrawableView{
 
         if (this.id == 0){
             throw IllegalStateException("Can't constrain elements because this instance has no id!")
@@ -154,6 +172,30 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         constraintSet.connect(barView.id, ConstraintSet.BOTTOM, this.id, ConstraintSet.BOTTOM, verticalMargin)
 
         constraintSet.applyTo(this)
+
+        return barView
+    }
+
+    private fun addBarNrView() : TextView {
+
+        val currentBarView = barView
+                ?: throw IllegalStateException("Can't constrain bar number view because a BarDrawableView was not created!")
+
+        val barNrView = TextView(context)
+        barNrView.id = generateViewId()
+        barNrView.layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
+        barNrView.text = bar.barNr.toString()
+        barNrView.setTextColor(resources.getColor(R.color.black))
+        barNrView.textSize = 15f
+        this.addView(barNrView)
+
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(this)
+        constraintSet.connect(barNrView.id, ConstraintSet.BOTTOM, currentBarView.id, ConstraintSet.TOP)
+        constraintSet.connect(barNrView.id, ConstraintSet.LEFT, this.id, ConstraintSet.LEFT)
+        constraintSet.applyTo(this)
+
+        return barNrView
     }
 
     /**
@@ -166,6 +208,10 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
      * even though it contains notes, not just rests.
      */
     private fun visualizeBar(){
+
+        val currentBarNrView = barNrView
+                ?: throw IllegalStateException("Bar number view needs updating, but does not exist!")
+        currentBarNrView.text = bar.barNr.toString()
 
         for (voicePair in bar.voices){
             // voice only has common stem direction if there are multiple voices
@@ -198,6 +244,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                 ?: throw IllegalStateException("Subgroup provides no common stem direction even though it has notes!")
 
                 val intervalWidth : Double = noteAreaWidth * calculateWidthPercent(interval, subGroup, voice.timeSignature)
+                val intervalWidthMinusOnePadding = noteAreaWidth * calculateWidthPercentMinusOnePadding(interval, subGroup, voice.timeSignature)
 
                 if (connectedIntervalCount == 0){
                     intervalConnectionGroup = null
@@ -220,11 +267,11 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                             connectedIntervalCount = intervalConnectionGroup.size - 1
                         }
                         else {
-                            visualizeUnconnectedInterval(interval, intervalWidth, subGroupDirection, voice, horizontalMarginInt)
+                            visualizeUnconnectedInterval(interval, intervalWidthMinusOnePadding, subGroupDirection, voice, horizontalMarginInt)
                         }
                     }
                     else {
-                        visualizeUnconnectedInterval(interval, intervalWidth, subGroupDirection, voice, horizontalMarginInt)
+                        visualizeUnconnectedInterval(interval, intervalWidthMinusOnePadding, subGroupDirection, voice, horizontalMarginInt)
                     }
                 }
                 else {
@@ -249,7 +296,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             throw IllegalArgumentException("The given interval is not part of the given connection group!")
         }
 
-        var intervalDoubleConnectionType : IntervalDoubleConnectionType? = null
+        var intervalDoubleConnectionType : IntervalDoubleConnectionType
 
         if (intervalIdx == connectionGroup.size - 1){
             intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
@@ -307,9 +354,6 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             }
         }
 
-        if (intervalDoubleConnectionType == null){
-            throw IllegalStateException("None of the available double connection types was decided on!")
-        }
         return intervalDoubleConnectionType
     }
 
@@ -438,7 +482,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         connectionView.scaleType = ImageView.ScaleType.FIT_XY
         connectionView.layoutParams = ViewGroup.LayoutParams(connectionWidth, connectionStrokeWidth)
         connectionView.setImageResource(R.drawable.black_rectangle)
-        addView(connectionView)
+        addBarDetailView(connectionView)
 
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
@@ -461,7 +505,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                 IntervalDoubleConnectionType.DOUBLE -> {
                     secondConnectionView.layoutParams = LayoutParams(connectionWidth, connectionStrokeWidth)
                     secondConnectionView.setImageResource(R.drawable.black_rectangle)
-                    addView(secondConnectionView)
+                    addBarDetailView(secondConnectionView)
 
                     constraintSet.clone(this)
                     constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT)
@@ -469,7 +513,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                 IntervalDoubleConnectionType.ONE_THIRD_START -> {
                     secondConnectionView.layoutParams = LayoutParams((intervalWidth / 3).toInt(), connectionStrokeWidth)
                     secondConnectionView.setImageResource(R.drawable.black_rectangle)
-                    addView(secondConnectionView)
+                    addBarDetailView(secondConnectionView)
 
                     constraintSet.clone(this)
                     constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT)
@@ -477,7 +521,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                 IntervalDoubleConnectionType.ONE_THIRD_END -> {
                     secondConnectionView.layoutParams = LayoutParams((intervalWidth / 3).toInt(), connectionStrokeWidth)
                     secondConnectionView.setImageResource(R.drawable.black_rectangle)
-                    addView(secondConnectionView)
+                    addBarDetailView(secondConnectionView)
 
                     constraintSet.clone(this)
                     constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT, (intervalWidth * 2 / 3.0).toInt())
@@ -485,7 +529,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
                 IntervalDoubleConnectionType.ONE_QUARTER_END -> {
                     secondConnectionView.layoutParams = LayoutParams((intervalWidth / 4).toInt(), connectionStrokeWidth)
                     secondConnectionView.setImageResource(R.drawable.black_rectangle)
-                    addView(secondConnectionView)
+                    addBarDetailView(secondConnectionView)
 
                     constraintSet.clone(this)
                     constraintSet.connect(secondConnectionView.id, ConstraintSet.LEFT, currentIntervalStemView.id, ConstraintSet.RIGHT, (intervalWidth * 3 / 4.0).toInt())
@@ -501,7 +545,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         }
     }
 
-    private fun visualizeUnconnectedInterval(interval: RhythmicInterval, intervalWidth : Double, subGroupDirection: StemDirection, voice: Voice, horizontalMargin: Int){
+    private fun visualizeUnconnectedInterval(interval: RhythmicInterval, intervalWidthMinusOnePadding: Double, subGroupDirection: StemDirection, voice: Voice, horizontalMargin: Int){
         val intervalLength = interval.getLengthCopy()
         val isWhole = intervalLength.basicLength == BasicRhythmicLength.WHOLE
         val isDotted = intervalLength.lengthModifier ==  LengthModifier.DOTTED
@@ -612,7 +656,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         } else {
             // Visualize as rest.
             val restView = createRestView(intervalLength.basicLength)
-            addRestView(restView, if (voiceDirection == null) null else voice.getAvgNoteHeight(), intervalLength.basicLength, intervalWidth, horizontalMargin)
+            addRestView(restView, if (voiceDirection == null) null else voice.getAvgNoteHeight(), intervalLength.basicLength, intervalWidthMinusOnePadding, horizontalMargin)
             if (isDotted) {
                 createConstrainedRestDotView(restView, intervalLength.basicLength)
             }
@@ -679,7 +723,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         dotView.layoutParams = ViewGroup.LayoutParams(dotDiameter, dotDiameter)
         dotView.setImageResource(R.drawable.black_circle)
 
-        this.addView(dotView)
+        this.addBarDetailView(dotView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
@@ -794,7 +838,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         dotView.layoutParams = ViewGroup.LayoutParams(dotDiameter, dotDiameter)
         dotView.setImageResource(R.drawable.black_circle)
 
-        this.addView(dotView)
+        this.addBarDetailView(dotView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
@@ -833,7 +877,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
             throw IllegalStateException("Width of noteView's layout parameters hasn't been set!")
         }
 
-        this.addView(noteView)
+        this.addBarDetailView(noteView)
         val constraintSet = ConstraintSet()
 
         if (musicalHeight in listOf(0, 12)){
@@ -890,7 +934,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         optionalStrokeView.layoutParams = ViewGroup.LayoutParams((noteHeadWidth * 1.33).toInt(), barStrokeWidth)
         optionalStrokeView.setImageResource(R.drawable.black_rectangle)
 
-        this.addView(optionalStrokeView)
+        this.addBarDetailView(optionalStrokeView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
@@ -932,7 +976,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         val leftMargin = (horizontalMargin + (intervalWidth - restWidth) / 2.0).toInt()
         val voiceCentreNoteHeight = avgVoiceNoteHeight ?: 6.0
 
-        this.addView(restView)
+        this.addBarDetailView(restView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
@@ -997,7 +1041,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight)
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)
 
-        this.addView(multiNoteStemView)
+        this.addBarDetailView(multiNoteStemView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
@@ -1049,7 +1093,7 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight.toInt())
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)
 
-        this.addView(multiNoteStemView)
+        this.addBarDetailView(multiNoteStemView)
         val constraintSet = ConstraintSet()
         constraintSet.clone(this)
 
@@ -1092,6 +1136,16 @@ class BarVisLayout(context: Context, private val barHeightPercentage: Double, va
         var subGroupPaddingPercent = 0.0
         if (subGroup.isLast(interval)) {
             subGroupPaddingPercent = WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT * subGroup.paddingFactor
+        }
+        return intervalPercentWithoutPadding + subGroupPaddingPercent
+    }
+
+    private fun calculateWidthPercentMinusOnePadding(interval: RhythmicInterval, subGroup: SubGroup, timeSignature: TimeSignature): Double {
+        val notesPercentWithoutPadding = 1 - (timeSignature.numberOfSubGroups - 1) * WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT
+        val intervalPercentWithoutPadding = notesPercentWithoutPadding * interval.getLengthCopy().lengthInUnits / timeSignature.units
+        var subGroupPaddingPercent = 0.0
+        if (subGroup.isLast(interval)) {
+            subGroupPaddingPercent = WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT * max(0, subGroup.paddingFactor - 1)
         }
         return intervalPercentWithoutPadding + subGroupPaddingPercent
     }

@@ -24,7 +24,7 @@ class Score(bars: List<Bar>, var title: String = "Title") {
          * @param timeSignature The time signature all bars in the score will have.
          * @param title The title of the score. "Title" if none is specified.
          */
-        fun makeEmpty(bars: Int, timeSignature: TimeSignature, title: String = "Title"): Score {
+        fun makeEmpty(bars: Int = 1, timeSignature: TimeSignature, title: String = "Title"): Score {
             val barList = mutableListOf<Bar>()
             for (i in 1..bars){
                 barList.add(Bar.makeEmpty(barNr = i, timeSignature = timeSignature))

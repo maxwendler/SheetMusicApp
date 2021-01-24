@@ -55,6 +55,10 @@ class TimeSignature(val numerator: Int, val denominator: Int) {
     val units: Int = numerator * (48 / denominator)
     val subGroupEndUnits : List<Int> = calculateSubGroupEndUnits()
 
+    fun equals(other: TimeSignature): Boolean{
+        return this.numerator == other.numerator && this.denominator == other.denominator
+    }
+
     /**
      * For setting [subGroupEndUnits]. While denominator 2 signatures get divided into half sub groups,
      * and denominator 4 signatures into quarter subgroups, there are different rules for denominator 8 ones (see code).

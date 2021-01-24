@@ -12,14 +12,14 @@ import com.example.sheetmusicapp.R
 import java.lang.IllegalArgumentException
 import java.lang.IllegalStateException
 
-class BarEditingOverlayLayout(context: Context, val barHeight: Double) : ConstraintLayout(context) {
+class BarEditingOverlayLayout(context: Context, val barHeight: Int) : ConstraintLayout(context) {
 
     val grid : MutableList<List<GridCellView>> = mutableListOf()
     var horizontalMargins : MutableList<Int>? = null
     var highlightedColumnIdx : Int? = null
 
     init {
-        doOnLayout { if (horizontalMargins != null) addOverlay() }
+        doOnLayout { if (horizontalMargins != null) createOverlay() }
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
@@ -30,6 +30,7 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Double) : Constra
             }
 
             if (event.action == MotionEvent.ACTION_MOVE){
+                if (event.y >= 0 && event.y <= this.height)
                 changeRowHighlighting(event.y)
             }
 
@@ -113,7 +114,7 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Double) : Constra
     fun changeRowHighlighting(touchMoveY: Float){
         val currentHighlightedColumnIdx = highlightedColumnIdx
         if (currentHighlightedColumnIdx != null) {
-            val bottomMargin = height - touchMoveY.toInt()
+            val bottomMargin = (height - touchMoveY).toInt()
             var verticalIdx: Int? = null
             for (cellIdx in grid[0].indices) {
                 if (bottomMargin < grid[0][cellIdx].topY) {
@@ -157,7 +158,9 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Double) : Constra
         }
     }
 
-    fun addOverlay(){
+    fun createOverlay(){
+        removeAllViews()
+
         val newGrid = mutableListOf<List<GridCellView>>()
         val currentMargins = horizontalMargins
         if (currentMargins != null) {

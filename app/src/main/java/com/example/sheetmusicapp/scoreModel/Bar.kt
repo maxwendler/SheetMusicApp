@@ -377,6 +377,15 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
         }
     }
 
+    fun isBarOfRests() : Boolean {
+        for (voice in voices.values){
+            if (!voice.isVoiceOfRests()){
+                return false
+            }
+        }
+        return true
+    }
+
     companion object {
 
         /**

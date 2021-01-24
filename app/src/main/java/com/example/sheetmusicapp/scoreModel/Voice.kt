@@ -34,7 +34,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
     init {
 
         if (intervals.isEmpty()){
-            throw IllegalArgumentException("Voices without intervals should note be created!")
+            throw IllegalArgumentException("Voices without intervals should not be created!")
         }
 
         // Sub group initialization //
@@ -205,6 +205,10 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
         }
         else throw IllegalStateException("The interval at the given idx is not part of a subgroup!")
     }
+
+    fun isVoiceOfRests() : Boolean {
+        return getAvgNoteHeight() == null
+    }
 }
 
 /**
@@ -274,11 +278,8 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
      * Returns the common stem direction for all notes of the subgroup, based on their height average.
      * Notes equal to or smaller than 6.5 will face upwards, the others downwards.
      */
-    fun getStemDirection() : StemDirection? {
-        val noteHeightAvg = getAvgNoteHeight()
-        if (noteHeightAvg == null){
-            return null
-        }
+    fun getStemDirection() : StemDirection {
+        val noteHeightAvg = getAvgNoteHeight() ?: return StemDirection.UP
         return if (noteHeightAvg <= 6.5) StemDirection.UP else StemDirection.DOWN
     }
 

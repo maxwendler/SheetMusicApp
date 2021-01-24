@@ -15,8 +15,7 @@ import androidx.core.view.doOnLayout
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
-import com.example.sheetmusicapp.ui.BarVisLayout
-import com.example.sheetmusicapp.ui.EditableBarLayout
+import com.example.sheetmusicapp.ui.ScoreEditingLayout
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.GsonBuilder
 
@@ -26,7 +25,7 @@ const val PICK_FILE = 2
 
 class MainActivity : AppCompatActivity() {
     var parser = GsonBuilder()
-    var editableBarLayout : EditableBarLayout? = null
+    var scoreEditingLayout : ScoreEditingLayout? = null
 
     private fun initParser() {
         parser.registerTypeAdapter(Score::class.java, ScoreSerializer())
@@ -97,8 +96,9 @@ class MainActivity : AppCompatActivity() {
         initParser()
 
 
-        // val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
+        val exampleScore = Score.makeEmpty(bars = 1, timeSignature =  TimeSignature(4, 4))
         val exampleBar = Bar.makeEmpty(1, TimeSignature(4, 4))
+        exampleScore.barList[0] = exampleBar
 
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 0)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 1)
@@ -123,7 +123,7 @@ class MainActivity : AppCompatActivity() {
 
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
         mainConstraintLayout.doOnLayout {
-            editableBarLayout = addEditableBarLayout(exampleBar)
+            scoreEditingLayout = addScoreEditingLayout(exampleScore)
         }
         initButtonGroups()
     }
@@ -135,7 +135,7 @@ class MainActivity : AppCompatActivity() {
      * @throws IllegalStateException When height or width of this activity's main layout is 0, appearing
      * as it has not been laid out yet.
      */
-    private fun addEditableBarLayout(bar: Bar) : EditableBarLayout{
+    private fun addScoreEditingLayout(score: Score) : ScoreEditingLayout{
 
         val mainLayout = findViewById<ConstraintLayout>(R.id.main)
         if (mainLayout.height == 0 || mainLayout.width == 0){
@@ -143,11 +143,12 @@ class MainActivity : AppCompatActivity() {
         }
         val horizontalBarMargin = (mainLayout.width * 0.15).toInt()
         val width = (mainLayout.width * 0.7).toInt()
+        val barHeight = mainLayout.height * 0.25
 
-        val editableBarLayout = EditableBarLayout(this, 1 / 3.0, bar)
+        val editableBarLayout = ScoreEditingLayout(this, findViewById(R.id.prevButton), barHeight.toInt(), score)
         editableBarLayout.id = ViewGroup.generateViewId()
         editableBarLayout.tag = "editableBarLayout"
-        editableBarLayout.layoutParams = ViewGroup.LayoutParams(width, mainLayout.height)
+        editableBarLayout.layoutParams = ViewGroup.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT)
         mainLayout.addView(editableBarLayout)
 
         val constraintSet = ConstraintSet()
@@ -164,7 +165,18 @@ class MainActivity : AppCompatActivity() {
         val currentNum = voiceNumButton.text.toString().toInt()
         val newNum = currentNum % 4 + 1
         voiceNumButton.text = newNum.toString()
-        editableBarLayout?.changeVisibleGrid(newNum)
+        scoreEditingLayout?.changeVisibleGrid(newNum)
     }
 
+    fun nextBar(view: View){
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't change bar without a score layout!")
+        currentScoreEditingLayout.nextBar()
+    }
+
+    fun previousBar(view: View){
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't change bar without a score layout!")
+        currentScoreEditingLayout.previousBar()
+    }
 }
