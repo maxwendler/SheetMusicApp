@@ -3,11 +3,9 @@ package com.example.sheetmusicapp.ui
 import android.app.AlertDialog
 import android.app.Dialog
 import android.content.Context
-import android.content.DialogInterface
 import android.os.Bundle
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import com.example.sheetmusicapp.R
@@ -21,7 +19,7 @@ class TimeSignatureDialogFragment(private val timeSignature: TimeSignature) : Di
     internal lateinit var listener: NewSignatureListener
 
     interface NewSignatureListener {
-        fun onDialogPositiveClick(dialog : TimeSignatureDialogFragment)
+        fun onSignatureDialogPositiveClick(dialog : TimeSignatureDialogFragment)
     }
 
     override fun onAttach(context: Context) {
@@ -61,7 +59,7 @@ class TimeSignatureDialogFragment(private val timeSignature: TimeSignature) : Di
             denominatorEditText.setText(timeSignature.denominator.toString())
 
             builder.setView(layout)
-                    .setPositiveButton("OK",  { _, _ -> listener.onDialogPositiveClick(this) })
+                    .setPositiveButton("OK",  { _, _ -> listener.onSignatureDialogPositiveClick(this) })
                     .setNegativeButton("CANCEL", { dialog, _ -> dialog.cancel()})
                     .setTitle("Change time signature")
 

@@ -2,21 +2,30 @@ package com.example.sheetmusicapp
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Rect
+import android.media.Image
+import android.opengl.Visibility
 import android.os.Build
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ImageButton
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
+import androidx.core.view.setPadding
 import androidx.fragment.app.DialogFragment
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
+import com.example.sheetmusicapp.ui.LengthSelectionDialogFragment
 import com.example.sheetmusicapp.ui.ScoreEditingLayout
 import com.example.sheetmusicapp.ui.TimeSignatureDialogFragment
 import com.example.sheetmusicapp.ui.TimeSignatureLayout
@@ -26,11 +35,24 @@ import com.google.gson.GsonBuilder
 const val CREATE_FILE = 1
 const val PICK_FILE = 2
 
+const val dotToCrossedDotRatio = 0.619
 
-class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatureListener {
+class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatureListener, LengthSelectionDialogFragment.NewLengthListener {
     var parser = GsonBuilder()
     var scoreEditingLayout : ScoreEditingLayout? = null
     var timeSignatureLayout: TimeSignatureLayout? = null
+    var noteInputSelectionVisible = false
+    var inputNoteHeadType : NoteHeadType? = NoteHeadType.ELLIPTIC
+    var inputIsDotted : Boolean = false
+    var inputLength : BasicRhythmicLength = BasicRhythmicLength.QUARTER
+    var mainWidth : Int = 0
+    var mainHeight : Int = 0
+    var statusBarHeight : Int = 0
+
+    lateinit var toggleOpenedButton: ImageButton
+    lateinit var toggleNoteHeadButton: ImageButton
+    lateinit var toggleDottedButton: ImageButton
+    lateinit var changeLengthButton: Button
 
     private fun initParser() {
         parser.registerTypeAdapter(Score::class.java, ScoreSerializer())
@@ -110,6 +132,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        actionBar?.hide()
         initParser()
 
 
@@ -144,7 +167,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         mainConstraintLayout.doOnLayout {
             scoreEditingLayout = addScoreEditingLayout(exampleScore)
             timeSignatureLayout = addTimeSignatureLayout(exampleScore.barList[0].timeSignature)
-
+            addNoteInputSelectionLayout()
         }
         initButtonGroups()
     }
@@ -162,6 +185,10 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         if (mainLayout.height == 0 || mainLayout.width == 0){
             throw IllegalStateException("'main' layout has not been laid out yet!" )
         }
+
+        mainWidth = mainLayout.width
+        mainHeight = mainLayout.height
+
         val horizontalBarMargin = (mainLayout.width * 0.15).toInt()
         val width = (mainLayout.width * 0.7).toInt()
         val barHeight = mainLayout.height * 0.25
@@ -245,7 +272,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         currentTimeSignatureLayout.updateViews(newTimeSignature)
     }
 
-    override fun onDialogPositiveClick(dialog: TimeSignatureDialogFragment) {
+    override fun onSignatureDialogPositiveClick(dialog: TimeSignatureDialogFragment) {
         val currentScoreEditingLayout = scoreEditingLayout
                 ?: throw IllegalStateException("Can't change score data when scoreEditingLayout is null!")
 
@@ -256,5 +283,167 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
             currentScoreEditingLayout.changeCurrentBarTimeSignature(newTimeSignature)
             updateTimeSignatureLayout(newTimeSignature)
         }
+    }
+
+    fun addNoteInputSelectionLayout(){
+        val mainLayout = findViewById<ConstraintLayout>(R.id.main)
+        if (mainLayout.height == 0 || mainLayout.width == 0){
+            throw IllegalStateException("'main' layout has not been laid out yet!" )
+        }
+
+        val width = (mainLayout.width * 0.15).toInt()
+        val height = (mainLayout.height * 0.375).toInt()
+
+        val layout : ConstraintLayout = layoutInflater.inflate(R.layout.note_input_selection, null) as ConstraintLayout
+        layout.id = ViewGroup.generateViewId()
+        layout.layoutParams = ViewGroup.LayoutParams(width, height)
+        mainLayout.addView(layout)
+
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(mainLayout)
+        constraintSet.connect(layout.id, ConstraintSet.RIGHT, mainLayout.id, ConstraintSet.RIGHT)
+        constraintSet.connect(layout.id, ConstraintSet.TOP, mainLayout.id, ConstraintSet.TOP)
+        constraintSet.applyTo(mainLayout)
+
+        toggleOpenedButton = layout.findViewById<ImageButton>(R.id.toggleOpenedButton)
+        toggleDottedButton = layout.findViewById<ImageButton>(R.id.toggleDottedButton)
+        toggleNoteHeadButton = layout.findViewById<ImageButton>(R.id.toggleNoteHeadButton)
+        changeLengthButton = layout.findViewById<Button>(R.id.changeLengthButton)
+
+        toggleOpenedButton.setOnClickListener {
+            toggleNoteInputSelectionVisibility()
+        }
+
+        toggleNoteHeadButton.setOnClickListener {
+            val imageButton = it as ImageButton
+            when (inputNoteHeadType){
+                NoteHeadType.ELLIPTIC -> {
+                    if (inputLength in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH, BasicRhythmicLength.QUARTER)) {
+                        imageButton.setImageResource(R.drawable.ic_x_notehead)
+                        inputNoteHeadType = NoteHeadType.CROSS
+                    }
+                    else {
+                        Toast.makeText(this, "Cross note heads are only supported for quarters, 8ths and 16ths!", Toast.LENGTH_LONG).show()
+                        imageButton.setImageResource(R.drawable.ic_rest_quarter)
+                        inputNoteHeadType = null
+                    }
+                }
+                NoteHeadType.CROSS -> {
+                    imageButton.setImageResource(R.drawable.ic_rest_quarter)
+                    inputNoteHeadType = null
+                }
+                null -> {
+                    imageButton.setImageResource(R.drawable.ic_full_notehead)
+                    inputNoteHeadType = NoteHeadType.ELLIPTIC
+                }
+            }
+            setInputSelectionSummaryImage()
+        }
+
+        toggleDottedButton.setOnClickListener {
+            val imageButton = it as ImageButton
+            if (!inputIsDotted){
+                if (inputLength != BasicRhythmicLength.SIXTEENTH) {
+                    imageButton.setImageResource(R.drawable.black_circle)
+                    imageButton.setPadding(55)
+                    inputIsDotted = true
+                }
+                else {
+                    Toast.makeText(this, "Dotted 16ths are not supported!", Toast.LENGTH_LONG).show()
+                }
+            }
+            else {
+                imageButton.setImageResource(R.drawable.ic_crossed_black_circle)
+                imageButton.setPadding(45)
+                inputIsDotted = false
+            }
+        }
+
+        changeLengthButton.setOnClickListener {
+            showLengthSelectionDialog()
+        }
+    }
+
+    fun toggleNoteInputSelectionVisibility(){
+        val newVisibility = if (noteInputSelectionVisible) View.INVISIBLE else View.VISIBLE
+        toggleDottedButton.visibility = newVisibility
+        toggleNoteHeadButton.visibility = newVisibility
+        changeLengthButton.visibility = newVisibility
+        noteInputSelectionVisible = !noteInputSelectionVisible
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev != null){
+            if (ev.x <= mainWidth * 0.85 || ev.y >= (statusBarHeight + mainHeight * 0.375) * 1.2){
+                if (noteInputSelectionVisible) toggleNoteInputSelectionVisibility()
+            }
+        }
+
+        return super.dispatchTouchEvent(ev)
+    }
+
+    fun getStatusBarHeight(){
+        val rectangle = Rect()
+        window.decorView.getWindowVisibleDisplayFrame(rectangle)
+        statusBarHeight = rectangle.top
+    }
+
+    fun showLengthSelectionDialog(){
+        val dialog = LengthSelectionDialogFragment(inputNoteHeadType, inputIsDotted)
+        dialog.listener = this
+        dialog.show(supportFragmentManager, "TimeSignatureDialog")
+    }
+
+    override fun onLengthDialogPositiveClick(newLength: BasicRhythmicLength?) {
+        if (newLength != null){
+            if (newLength != inputLength){
+                if (newLength != BasicRhythmicLength.SIXTEENTH || !inputIsDotted) {
+                    inputLength = newLength
+                    changeLengthButton.setText(when (newLength) {
+                        BasicRhythmicLength.WHOLE -> "1/1"
+                        BasicRhythmicLength.HALF -> "1/2"
+                        BasicRhythmicLength.QUARTER -> "1/4"
+                        BasicRhythmicLength.EIGHTH -> "1/8"
+                        BasicRhythmicLength.SIXTEENTH -> "1/16"
+                    })
+                    changeLengthButton.textSize =
+                            if (newLength == BasicRhythmicLength.SIXTEENTH) 10f
+                            else 14f
+                    setInputSelectionSummaryImage()
+                }
+                else {
+                    Toast.makeText(this, "Dotted 16ths are not supported!", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    fun setInputSelectionSummaryImage(){
+        toggleOpenedButton.setImageResource(when(inputNoteHeadType){
+            NoteHeadType.ELLIPTIC -> when(inputLength){
+                BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
+                BasicRhythmicLength.HALF -> R.drawable.ic_half
+                BasicRhythmicLength.QUARTER -> R.drawable.ic_quarter
+                BasicRhythmicLength.EIGHTH -> R.drawable.ic_eighth
+                BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_sixteenth
+            }
+            NoteHeadType.CROSS -> when(inputLength){
+                BasicRhythmicLength.QUARTER -> R.drawable.ic_x_quarter
+                BasicRhythmicLength.EIGHTH -> R.drawable.ic_x_eighth
+                BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_x_sixteenth
+                else -> throw IllegalStateException("Cross note heads are only supported for quarters, 8ths and 16ths!")
+            }
+            null -> when(inputLength){
+                BasicRhythmicLength.WHOLE, BasicRhythmicLength.HALF -> R.drawable.ic_rest_half
+                BasicRhythmicLength.QUARTER -> R.drawable.ic_rest_quarter
+                BasicRhythmicLength.EIGHTH -> R.drawable.ic_rest_eighth
+                BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_rest_sixteenth
+            }
+        })
+
+        toggleOpenedButton.scaleY =
+                if (inputLength == BasicRhythmicLength.WHOLE && inputNoteHeadType == null) -1f
+                else 1f
+
     }
 }
