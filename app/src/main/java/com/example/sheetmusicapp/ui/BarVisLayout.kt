@@ -53,9 +53,6 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
 
     var bar : Bar = initBar
         set(value) {
-            barDetailViews.forEach {
-                removeView(it)
-            }
             field = value
             visualizeBar()
         }
@@ -207,7 +204,11 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
      * @throws IllegalStateException When a subgroup does has not calculated a common stem direction for its intervals,
      * even though it contains notes, not just rests.
      */
-    private fun visualizeBar(){
+    fun visualizeBar(){
+
+        barDetailViews.forEach {
+            removeView(it)
+        }
 
         val currentBarNrView = barNrView
                 ?: throw IllegalStateException("Bar number view needs updating, but does not exist!")
@@ -241,7 +242,6 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                 val subGroup : SubGroup = subGroups[intervalSubGroupIdx]
                 // If there's a voice direction, use this for the subgroup, otherwise let subgroup decide.
                 val subGroupDirection = voiceDirection ?: subGroup.getStemDirection()
-                ?: throw IllegalStateException("Subgroup provides no common stem direction even though it has notes!")
 
                 val intervalWidth : Double = noteAreaWidth * calculateWidthPercent(interval, subGroup, voice.timeSignature)
                 val intervalWidthMinusOnePadding = noteAreaWidth * calculateWidthPercentMinusOnePadding(interval, subGroup, voice.timeSignature)
@@ -316,7 +316,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                             }
                             else {
                                 val previousInterval = connectionGroup[intervalIdx - 1]
-                                if (previousInterval.getLengthCopy().lengthInUnits != RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits){
+                                if (calculateIntervalDoubleConnectionType(previousInterval, connectionGroup) == IntervalDoubleConnectionType.NONE) {
                                     intervalDoubleConnectionType = IntervalDoubleConnectionType.ONE_THIRD_START
                                 }
                                 else {
@@ -462,7 +462,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         var commonStemView : ImageView? = null
         // Add common stem for all interval notes.
         if (lastNoteHeadView != null && firstNoteHeadType != null){
-            commonStemView = addMultiNoteStemForConnection(subGroupDirection, lastNoteHeadView, firstNoteHeadType ,sortedMusicalNoteHeights.last(), intervalConnectionToBottomMargin, isMirrored)
+            commonStemView = addMultiNoteStemForConnection(subGroupDirection, lastNoteHeadView, sortedMusicalNoteHeights.last(), intervalConnectionToBottomMargin, isMirrored)
         }
 
         // Add connection to next interval.
@@ -574,7 +574,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
 
             // Visualize remaining notes as note heads.
             var lastNoteHeadView : NoteView? = null
-            var firstNoteHeadType : NoteHeadType? = null
+            val firstNoteHeadType : NoteHeadType = noteHeads[extremumMusicalHeight] ?: throw IllegalStateException("Extremum musical height not contained in note heads.")
             var nextMusicHeight : Int? = sortedMusicalNoteHeights.firstOrNull()
             var nextIsMirrored = if(nextMusicHeight != null) kotlin.math.abs(nextMusicHeight - extremumMusicalHeight) == 1 else null
             var isMirrored = false
@@ -582,9 +582,6 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                 val musicalNoteHeadHeight = sortedMusicalNoteHeights[i]
                 val noteHeadType = noteHeads[musicalNoteHeadHeight]
                         ?: throw IllegalStateException("noteHeads does not contain an element from sortedMusicalNoteHeights!")
-                if (i == 0){
-                    firstNoteHeadType = noteHeadType
-                }
 
                 if (nextIsMirrored != null) {
                     isMirrored = nextIsMirrored
@@ -640,7 +637,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
             if (sortedMusicalNoteHeights.size > 0) {
                 if (lastNoteHeadView != null){
                     // Whole notes generally have no stem and therefore also no connecting multi stem.
-                    if (!isWhole && firstNoteHeadType != null) {
+                    if (!isWhole) {
                         if (subGroupDirection == StemDirection.UP) {
                             addMultiNoteStem(sortedMusicalNoteHeights.last(), extremumMusicalHeight, subGroupDirection, lastNoteHeadView, firstNoteHeadType, isMirrored)
                         } else {
@@ -872,10 +869,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
             throw IllegalStateException("Can't constrain view because this instance was not laid out yet.")
         }
 
-        val noteHeadWidth = noteView.layoutParams.width
-        if (noteHeadWidth == 0){
-            throw IllegalStateException("Width of noteView's layout parameters hasn't been set!")
-        }
+        val noteHeadWidth = (noteHeadHeight * noteHeadWidthToHeightRatio).toInt()
 
         this.addBarDetailView(noteView)
         val constraintSet = ConstraintSet()
@@ -887,7 +881,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
 
         var horizontalMarginModifier = 0
         if (noteView.headType == NoteHeadType.CROSS){
-           horizontalMarginModifier = getNoteHeadWidth(NoteHeadType.ELLIPTIC, noteView.basicLength) - noteHeadWidth
+           horizontalMarginModifier = noteHeadWidth - getNoteHeadWidth(NoteHeadType.CROSS, noteView.basicLength)
         }
 
         // Handle upwards notes / note heads.
@@ -1073,20 +1067,18 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         constraintSet.applyTo(this)
     }
 
-    private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: NoteView, endViewType: NoteHeadType , startMusicHeight: Int, intervalConnectionToBottomMargin: Int, isMirrored: Boolean) : ImageView{
+    private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: NoteView, startMusicHeight: Int, intervalConnectionToBottomMargin: Int, isMirrored: Boolean) : ImageView{
         val multiNoteStemView = ImageView(context)
         multiNoteStemView.id = View.generateViewId()
         multiNoteStemView.scaleType = ImageView.ScaleType.FIT_XY
+
         var newMultiStemHeight =
                 if (stemDirection == StemDirection.UP) intervalConnectionToBottomMargin - (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) - noteStemStartHeight
-                else (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) - noteStemStartHeight - intervalConnectionToBottomMargin
+                else (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) + noteStemStartHeight - intervalConnectionToBottomMargin
         val startNoteHeadType = startNoteHeadView.headType
-        if (startNoteHeadType != endViewType){
-            val stemHeightModifier = noteHeadHeight - noteStemStartHeight
-            when (startNoteHeadType){
-                NoteHeadType.CROSS -> newMultiStemHeight -= stemHeightModifier
-                NoteHeadType.ELLIPTIC -> newMultiStemHeight += stemHeightModifier
-            }
+        if (startNoteHeadType == NoteHeadType.CROSS){
+            if (stemDirection == StemDirection.UP) newMultiStemHeight -= (2 * verticalMusicHeightStep - noteStemStartHeight)
+            else newMultiStemHeight -= noteStemStartHeight
         }
         val headTypeStemStartHeight = if (startNoteHeadType == NoteHeadType.ELLIPTIC) noteStemStartHeight else noteHeadHeight
 

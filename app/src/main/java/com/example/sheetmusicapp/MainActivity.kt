@@ -13,10 +13,13 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
+import androidx.fragment.app.DialogFragment
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
 import com.example.sheetmusicapp.ui.ScoreEditingLayout
+import com.example.sheetmusicapp.ui.TimeSignatureDialogFragment
+import com.example.sheetmusicapp.ui.TimeSignatureLayout
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.GsonBuilder
 
@@ -24,9 +27,10 @@ const val CREATE_FILE = 1
 const val PICK_FILE = 2
 
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatureListener {
     var parser = GsonBuilder()
     var scoreEditingLayout : ScoreEditingLayout? = null
+    var timeSignatureLayout: TimeSignatureLayout? = null
 
     private fun initParser() {
         parser.registerTypeAdapter(Score::class.java, ScoreSerializer())
@@ -112,23 +116,25 @@ class MainActivity : AppCompatActivity() {
         val exampleScore = Score.makeEmpty(bars = 1, timeSignature =  TimeSignature(4, 4))
         val exampleBar = Bar.makeEmpty(1, TimeSignature(4, 4))
         exampleScore.barList[0] = exampleBar
+        exampleScore.barList.add(Bar.makeEmpty(2, TimeSignature(4, 4)))
+        exampleScore.barList.add(Bar.makeEmpty(3, TimeSignature(6, 8)))
 
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 0)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 1)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 2)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.CROSS, 11, 2)
+        // exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 2)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 3)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 4)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 5)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 6)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 7)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED), NoteHeadType.CROSS, 11, 0)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.CROSS, 11, 1)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 7, 2)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 7, 6)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 7, 2)
+        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 7, 5)
 
         exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 3, 0)
         exampleBar.addRest(2, RhythmicLength(BasicRhythmicLength.QUARTER), 1)
-        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 3, 2)
+        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 3, 2)
 
         // exampleBar.addRest(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), 0)
 
@@ -137,6 +143,8 @@ class MainActivity : AppCompatActivity() {
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
         mainConstraintLayout.doOnLayout {
             scoreEditingLayout = addScoreEditingLayout(exampleScore)
+            timeSignatureLayout = addTimeSignatureLayout(exampleScore.barList[0].timeSignature)
+
         }
         initButtonGroups()
     }
@@ -173,6 +181,32 @@ class MainActivity : AppCompatActivity() {
         return editableBarLayout
     }
 
+    private fun addTimeSignatureLayout(timeSignature: TimeSignature) : TimeSignatureLayout{
+        val mainLayout = findViewById<ConstraintLayout>(R.id.main)
+        if (mainLayout.height == 0 || mainLayout.width == 0){
+            throw IllegalStateException("'main' layout has not been laid out yet!" )
+        }
+        val barHeight = mainLayout.height * 0.25
+
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't add time signature vis without score editing layout to constrain to!")
+
+        val timeSignatureLayout = TimeSignatureLayout(this, timeSignature)
+        timeSignatureLayout.id = ViewGroup.generateViewId()
+        timeSignatureLayout.layoutParams = ViewGroup.LayoutParams((barHeight / 3).toInt(), barHeight.toInt())
+        timeSignatureLayout.setOnClickListener { showTimeSignatureDialog(it) }
+        mainLayout.addView(timeSignatureLayout)
+
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(mainLayout)
+        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.RIGHT, currentScoreEditingLayout.id, ConstraintSet.LEFT, 16)
+        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.TOP, mainLayout.id, ConstraintSet.TOP)
+        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.BOTTOM, mainLayout.id, ConstraintSet.BOTTOM)
+        constraintSet.applyTo(mainLayout)
+
+        return timeSignatureLayout
+    }
+
     fun handleVoiceChange(view: View){
         val voiceNumButton = findViewById<Button>(R.id.voiceNumButton)
         val currentNum = voiceNumButton.text.toString().toInt()
@@ -185,11 +219,42 @@ class MainActivity : AppCompatActivity() {
         val currentScoreEditingLayout = scoreEditingLayout
                 ?: throw IllegalStateException("Can't change bar without a score layout!")
         currentScoreEditingLayout.nextBar()
+        val newTimeSignature = currentScoreEditingLayout.bar.timeSignature
+        updateTimeSignatureLayout(newTimeSignature)
     }
 
     fun previousBar(view: View){
         val currentScoreEditingLayout = scoreEditingLayout
                 ?: throw IllegalStateException("Can't change bar without a score layout!")
         currentScoreEditingLayout.previousBar()
+        val newTimeSignature = currentScoreEditingLayout.bar.timeSignature
+        updateTimeSignatureLayout(newTimeSignature)
+    }
+
+    fun showTimeSignatureDialog(view: View) {
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't pass current time signature when scoreEditingLayout is null!")
+
+        val dialog = TimeSignatureDialogFragment(currentScoreEditingLayout.bar.timeSignature)
+        dialog.show(supportFragmentManager, "TimeSignatureDialog")
+    }
+
+    fun updateTimeSignatureLayout(newTimeSignature: TimeSignature){
+        val currentTimeSignatureLayout = timeSignatureLayout
+                ?: throw IllegalStateException("Can't change update time signature without time signature layout!")
+        currentTimeSignatureLayout.updateViews(newTimeSignature)
+    }
+
+    override fun onDialogPositiveClick(dialog: TimeSignatureDialogFragment) {
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't change score data when scoreEditingLayout is null!")
+
+        val newNumeratorText = dialog.numeratorEditText.text
+        val newDenominatorText = dialog.denominatorEditText.text
+        if (newNumeratorText.toString() != "" && newDenominatorText.toString() != ""){
+            val newTimeSignature = TimeSignature(newNumeratorText.toString().toInt(), newDenominatorText.toString().toInt())
+            currentScoreEditingLayout.changeCurrentBarTimeSignature(newTimeSignature)
+            updateTimeSignatureLayout(newTimeSignature)
+        }
     }
 }

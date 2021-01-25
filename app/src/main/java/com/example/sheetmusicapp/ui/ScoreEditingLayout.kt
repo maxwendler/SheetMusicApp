@@ -3,14 +3,10 @@ package com.example.sheetmusicapp.ui
 import android.content.Context
 import android.view.ViewGroup
 import android.widget.ImageButton
-import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
-import androidx.core.view.isVisible
-import com.example.sheetmusicapp.R
-import com.example.sheetmusicapp.scoreModel.Bar
-import com.example.sheetmusicapp.scoreModel.Score
+import com.example.sheetmusicapp.scoreModel.*
 import kotlin.IllegalArgumentException
 
 class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,private val barHeight: Int, score: Score, initBarIdx : Int = 0) : ConstraintLayout(context) {
@@ -138,7 +134,7 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
         }
 
         val previousBar = bars[barIdx]
-        if (bar.isBarOfRests() && bar.timeSignature.equals(previousBar.timeSignature)){
+        if (bar.isBarOfRests() && bar.timeSignature.equals(previousBar.timeSignature) && bar == bars.last()){
             bars.removeAt(barIdx + 1)
         }
         updateOverlays(previousBar)
@@ -167,6 +163,78 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
             it.value.visibility =
                     if (it.key == activeVoiceOverlayNum) VISIBLE
                     else INVISIBLE
+        }
+    }
+
+    fun changeCurrentBarTimeSignature(newTimeSignature: TimeSignature){
+        val currentBarTimeSignature = bar.timeSignature
+        if (!newTimeSignature.equals(currentBarTimeSignature)){
+
+            if (newTimeSignature.units > bar.timeSignature.units){
+                var nextBar = bar
+                var nextBarIdx = barIdx
+                while (nextBar.timeSignature.equals(currentBarTimeSignature)){
+                    nextBar.changeTimeSignatureToLarger(newTimeSignature)
+                    nextBarIdx++
+                    if (nextBarIdx == bars.size) break
+                    nextBar = bars[nextBarIdx]
+                }
+            }
+            else if (newTimeSignature.units < bar.timeSignature.units) {
+                val newNextBarIntervalsOfVoices = bar.changeTimeSignatureToSmaller(newTimeSignature)
+                if (newNextBarIntervalsOfVoices != null){
+                    val newNextBar = Bar.makeEmpty(bar.barNr + 1, newTimeSignature)
+                    var editedVoiceOne = false
+                    var onlyRestsInBar = true
+                    for (pair in newNextBarIntervalsOfVoices){
+                        val voiceNum = pair.key
+                        val intervals = pair.value
+
+                        var onlyRestsInVoice = true
+                        for (interval in intervals){
+                            if (interval.getNoteHeadsCopy().isNotEmpty()){
+                                onlyRestsInVoice = false
+                                break
+                            }
+                        }
+
+                        if (!onlyRestsInVoice){
+                            onlyRestsInBar = false
+
+                            if (voiceNum == 1) editedVoiceOne = true
+                            else newNextBar.addEmptyVoice(voiceNum)
+                            val voice : Voice = newNextBar.voices[voiceNum]
+                                    ?: throw IllegalStateException("addEmptyVoice() must have failed!")
+
+                            voice.intervals.clear()
+                            for (interval in intervals){
+                                voice.intervals.add(interval)
+                            }
+                            val currentLastInterval = voice.intervals.last()
+                            val remainingUnits = newTimeSignature.units - currentLastInterval.endUnit
+                            val remainderLengths = lengthsFromUnitLengthAsc(remainingUnits)
+                            var startUnit = currentLastInterval.endUnit + 1
+                            for (length in remainderLengths){
+                                voice.intervals.add(RhythmicInterval(length, mutableMapOf(), startUnit))
+                            }
+                            voice.initializeSubGroups()
+                        }
+
+                    }
+                    if (!editedVoiceOne) bar.voices.remove(1)
+                    if (!onlyRestsInBar){
+                        newNextBar.calculateVoiceStemDirections()
+                        bars.add(barIdx + 1, newNextBar)
+                        for (otherBar in bars.subList(barIdx + 2, bars.size)){
+                            otherBar.barNr += 1
+                        }
+                    }
+                }
+            }
+
+            val currentBarVisLayout = barVisLayout
+                    ?: throw IllegalStateException("Can't update bar visualization because barVisLayout is null!")
+            currentBarVisLayout.visualizeBar()
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.example.sheetmusicapp.scoreModel
 
-import java.lang.IllegalArgumentException
-import java.lang.IllegalStateException
+import kotlin.IllegalArgumentException
+import kotlin.IllegalStateException
 
 /**
  * Bar instances are the elements of a drum score. They have a certain time signature and consist of
@@ -14,7 +14,15 @@ import java.lang.IllegalStateException
  * @constructor Creates a bar which contains the given voices, with the given time signature and bar number.
  * @author Max Wendler
  */
-class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<Int,MutableList<RhythmicInterval>>) {
+class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<Int,MutableList<RhythmicInterval>>) {
+
+    var timeSignature = initTimeSignature
+        set(value) {
+            for (voice in voices.values){
+                voice.timeSignature = value
+            }
+            field = value
+        }
 
     val voices: MutableMap<Int, Voice> = mutableMapOf()
     // voice instantiation from voice intervals
@@ -352,7 +360,7 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
      * Calculates and sets the common stem direction of all bar voices. If only one voice exists,
      * its subgroups can decide their stem direction, therefore it'll be null.
      */
-    private fun calculateVoiceStemDirections(){
+    fun calculateVoiceStemDirections(){
         if (voices.size <= 1){
             voices.values.forEach { voice -> voice.stemDirection = null }
         }
@@ -384,6 +392,116 @@ class Bar(var barNr: Int, var timeSignature: TimeSignature, voiceIntervals: Map<
             }
         }
         return true
+    }
+
+    fun changeTimeSignatureToLarger(newTimeSignature: TimeSignature){
+        if (newTimeSignature.units <= timeSignature.units){
+            throw IllegalArgumentException("New time signature is not larger!")
+        }
+
+        if (isBarOfRests()){
+            voices.clear()
+            timeSignature = newTimeSignature
+            addEmptyVoice(1)
+        }
+        else {
+            val remainingUnits = newTimeSignature.units - timeSignature.units
+            timeSignature = newTimeSignature
+            val lengthsForNewRests = lengthsFromUnitLengthAsc(remainingUnits)
+            for (voice in voices.values) {
+                val lastInterval = voice.intervals.lastOrNull()
+                        ?: throw IllegalStateException("Voices with no intervals should not exist!")
+                var startUnit = lastInterval.endUnit + 1
+                for (rhythmicLength in lengthsForNewRests) {
+                    voice.intervals.add(RhythmicInterval(RhythmicLength(rhythmicLength.basicLength, rhythmicLength.lengthModifier), mutableMapOf(), startUnit))
+                    startUnit += rhythmicLength.lengthInUnits
+                }
+                voice.initializeSubGroups()
+            }
+        }
+    }
+
+    fun changeTimeSignatureToSmaller(newTimeSignature: TimeSignature) : MutableMap<Int, MutableList<RhythmicInterval>>?{
+        if (newTimeSignature.units >= timeSignature.units){
+            throw IllegalArgumentException("New time signature is not smaller!")
+        }
+
+        if (isBarOfRests()){
+            voices.clear()
+            timeSignature = newTimeSignature
+            addEmptyVoice(1)
+            return null
+        }
+        else {
+            val newBarVoiceIntervals = mutableMapOf<Int, MutableList<RhythmicInterval>>()
+            for (pair in voices){
+                val voiceNum = pair.key
+                val voice = pair.value
+                val voiceIntervals = voice.intervals
+                var lastContainedIntervalIdx = 0
+                var cutInTwoInterval : RhythmicInterval? = null
+
+                for (i in voice.intervals.indices){
+                    val currentInterval = voiceIntervals[i]
+                    if (currentInterval.endUnit > newTimeSignature.units){
+                        if (currentInterval.startUnit <= newTimeSignature.units){
+                            cutInTwoInterval = currentInterval
+                            lastContainedIntervalIdx = i
+                        }
+                        break
+                    }
+                    else lastContainedIntervalIdx = i
+                }
+
+                val remainingIntervalsForNextBar = voiceIntervals.subList(lastContainedIntervalIdx + 1, voiceIntervals.size).toMutableList()
+                val currentVoiceIntervalsSize = voiceIntervals.size
+                for (i in (lastContainedIntervalIdx + 1) until currentVoiceIntervalsSize){
+                    voiceIntervals.removeLast()
+                }
+                val nextBarIntervalsOfVoice = mutableListOf<RhythmicInterval>()
+
+                if (cutInTwoInterval != null){
+                    val currentBarRemainingUnits = newTimeSignature.units + 1 - cutInTwoInterval.startUnit
+                    val currentBarRemainderLengths = lengthsFromUnitLengthAsc(currentBarRemainingUnits)
+                    val nextBarRemainingUnits = cutInTwoInterval.endUnit - newTimeSignature.units
+                    val nextBarRemainderLengths = lengthsFromUnitLengthAsc(nextBarRemainingUnits)
+
+                    // deal with current bar
+                    val newCutInTwoIntervalLength = currentBarRemainderLengths.removeFirst()
+                    voiceIntervals[lastContainedIntervalIdx] =
+                            RhythmicInterval(newCutInTwoIntervalLength, cutInTwoInterval.getNoteHeadsCopy(), cutInTwoInterval.startUnit)
+                    var startUnit = cutInTwoInterval.startUnit + newCutInTwoIntervalLength.lengthInUnits
+                    for (length in currentBarRemainderLengths){
+                        voiceIntervals.add(RhythmicInterval(length, mutableMapOf(), startUnit))
+                        startUnit += length.lengthInUnits
+                    }
+
+                    // deal with next bar
+                    val newCutInTwoIntervalLengthInNextBar = nextBarRemainderLengths.removeFirst()
+                    nextBarIntervalsOfVoice.add(RhythmicInterval(newCutInTwoIntervalLengthInNextBar, cutInTwoInterval.getNoteHeadsCopy(), 1))
+                    startUnit = newCutInTwoIntervalLengthInNextBar.lengthInUnits + 1
+                    for (length in nextBarRemainderLengths){
+                        nextBarIntervalsOfVoice.add(RhythmicInterval(length, mutableMapOf(), startUnit))
+                        startUnit += length.lengthInUnits
+                    }
+                }
+
+                val lastIntervalFromCurrentBar = nextBarIntervalsOfVoice.lastOrNull()
+                var startUnit = if(lastIntervalFromCurrentBar == null) 1 else lastIntervalFromCurrentBar.endUnit + 1
+                for (interval in remainingIntervalsForNextBar){
+                    nextBarIntervalsOfVoice.add(RhythmicInterval(interval.getLengthCopy(), interval.getNoteHeadsCopy(), startUnit))
+                    startUnit += interval.getLengthCopy().lengthInUnits
+                }
+                newBarVoiceIntervals[voiceNum] = nextBarIntervalsOfVoice
+            }
+
+            timeSignature = newTimeSignature
+            for (voice in voices.values){
+                voice.initializeSubGroups()
+            }
+
+            return newBarVoiceIntervals
+        }
     }
 
     companion object {

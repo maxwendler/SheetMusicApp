@@ -25,18 +25,28 @@ enum class StemDirection{
  * @throws IllegalArgumentException When [intervals] is empty. The "emptiest" voices that should be created should contain rests at least.
  * @throws IllegalArgumentException When one element of [intervals] exceeds the length of units of the given [TimeSignature].
  */
-class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: TimeSignature) {
+class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: TimeSignature) {
 
-    private val subGroups: List<SubGroup>
+    private lateinit var subGroups: List<SubGroup>
     private val intervalSubGroupIdxs: MutableMap<RhythmicInterval, Int> = mutableMapOf()
     var stemDirection : StemDirection? = null
 
     init {
-
         if (intervals.isEmpty()){
             throw IllegalArgumentException("Voices without intervals should not be created!")
         }
+        initializeSubGroups()
+    }
 
+    fun getCopyOfSubGroups(): MutableList<SubGroup>{
+        return subGroups.toMutableList()
+    }
+
+    fun getIntervalSubGroupIdxsCopy(): MutableMap<RhythmicInterval, Int> {
+        return intervalSubGroupIdxs.toMutableMap()
+    }
+
+    fun initializeSubGroups(){
         // Sub group initialization //
         val subGroupEndUnits = timeSignature.subGroupEndUnits
         val subGroupAggregator = mutableListOf<SubGroup>()
@@ -48,7 +58,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
             val currentSubGroup: SubGroup
             // Create sub group instance with according start & end unit.
             if (i == 0){
-                currentSubGroup = SubGroup(mutableListOf<RhythmicInterval>(), 0 ,subGroupEndUnits[i])
+                currentSubGroup = SubGroup(mutableListOf<RhythmicInterval>(), 1 ,subGroupEndUnits[i])
             }
             else {
                 currentSubGroup = SubGroup(mutableListOf<RhythmicInterval>(), subGroupEndUnits[i - 1] + 1, subGroupEndUnits[i])
@@ -74,14 +84,6 @@ class Voice (val intervals: MutableList<RhythmicInterval>, val timeSignature: Ti
             subGroupAggregator.add(currentSubGroup)
         }
         subGroups = subGroupAggregator.toList()
-    }
-
-    fun getCopyOfSubGroups(): MutableList<SubGroup>{
-        return subGroups.toMutableList()
-    }
-
-    fun getIntervalSubGroupIdxsCopy(): MutableMap<RhythmicInterval, Int> {
-        return intervalSubGroupIdxs.toMutableMap()
     }
 
     /**
@@ -337,7 +339,9 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
         for (interval in sortedIntervals){
             if (interval.isRest){
                 if (newConnectedList.isNotEmpty()){
-                    connectedIntervals.add(newConnectedList)
+                    if (connectedIntervals.size > 1){
+                        connectedIntervals.add(newConnectedList)
+                    }
                     newConnectedList = mutableListOf<RhythmicInterval>()
                 }
             }
@@ -354,14 +358,18 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                             if (length.lengthInUnits in listOf(RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits, RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits)) {
                                 newConnectedList.add(interval)
                             } else {
-                                connectedIntervals.add(newConnectedList)
+                                if (connectedIntervals.size > 1){
+                                    connectedIntervals.add(newConnectedList)
+                                }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
                             }
                         RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED).lengthInUnits ->
                             if (length.lengthInUnits == RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits) {
                                 newConnectedList.add(interval)
                             } else {
-                                connectedIntervals.add(newConnectedList)
+                                if (connectedIntervals.size > 1){
+                                    connectedIntervals.add(newConnectedList)
+                                }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
                             }
                         RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits ->
@@ -370,7 +378,9 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                                             RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED))) {
                                 newConnectedList.add(interval)
                             } else {
-                                connectedIntervals.add(newConnectedList)
+                                if (connectedIntervals.size > 1){
+                                    connectedIntervals.add(newConnectedList)
+                                }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
                             }
                     }
@@ -378,7 +388,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
             }
         }
 
-        if (newConnectedList.isNotEmpty()){
+        if (newConnectedList.size > 1){
             connectedIntervals.add(newConnectedList)
         }
     }
