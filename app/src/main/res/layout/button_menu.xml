@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:id="@+id/buttonMenu">
+
+    <Button
+        android:id="@+id/menuButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="MENU" />
+
+    <Button
+        android:id="@+id/button_file_open"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="OPEN"
+        android:visibility="invisible" />
+
+    <Button
+        android:id="@+id/button_file_save"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="save"
+        android:visibility="invisible" />
+
+    <Button
+        android:id="@+id/overviewButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="overview"
+        android:visibility="invisible" />
+</LinearLayout>

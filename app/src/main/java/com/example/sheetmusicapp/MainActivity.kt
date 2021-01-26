@@ -10,13 +10,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
-import androidx.core.view.isVisible
 import androidx.core.view.setPadding
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
@@ -24,7 +24,6 @@ import com.example.sheetmusicapp.scoreModel.*
 import com.example.sheetmusicapp.ui.*
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.GsonBuilder
-import java.io.Serializable
 
 const val CREATE_FILE = 1
 const val PICK_FILE = 2
@@ -45,6 +44,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
     var mainWidth : Int = 0
     var mainHeight : Int = 0
     var statusBarHeight : Int = 0
+    var menuIsVisible = false
 
     lateinit var toggleOpenedButton: ImageButton
     lateinit var toggleNoteHeadButton: ImageButton
@@ -102,6 +102,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
             val currentScoreEditingLayout = scoreEditingLayout
                 ?: throw IllegalStateException("Can't update bar vis if scoreEditingLayout is null!")
             currentScoreEditingLayout.goToBar(barNr, editingMode)
+            setMenuButtonsVisibility(false)
 
             val previousBarButton = findViewById<ImageButton>(R.id.prevButton)
             previousBarButton.isClickable = barNr > 1
@@ -111,19 +112,25 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    private fun initButtonGroups() {
-        val fileButton: Button = findViewById(R.id.button_file)
+    private fun initMenu() {
+        val menuWidth = (mainWidth * 0.15).toInt()
+        val menuLayout = layoutInflater.inflate(R.layout.button_menu, null)
+        menuLayout.layoutParams = ViewGroup.LayoutParams(menuWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
+
+        val mainLayout = findViewById<ConstraintLayout>(R.id.main)
+        mainLayout.addView(menuLayout)
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(mainLayout)
+        constraintSet.connect(menuLayout.id, ConstraintSet.LEFT, mainLayout.id, ConstraintSet.LEFT)
+        constraintSet.connect(menuLayout.id, ConstraintSet.TOP, mainLayout.id, ConstraintSet.TOP)
+        constraintSet.applyTo(mainLayout)
+
+        val menuButton: Button = findViewById(R.id.menuButton)
         val openFileButton: Button = findViewById(R.id.button_file_open)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
-        fileButton.setOnClickListener {
-            if (openFileButton.isVisible) {
-                openFileButton.visibility = View.GONE
-                saveFileButton.visibility = View.GONE
-            } else {
-                openFileButton.visibility = View.VISIBLE
-                saveFileButton.visibility = View.VISIBLE
-            }
-
+        val overviewButton: Button = findViewById(R.id.overviewButton)
+        menuButton.setOnClickListener {
+            toggleMenuButtonsVisibility()
         }
         openFileButton.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -141,6 +148,31 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
             }
             startActivityForResult(intent, CREATE_FILE)
         }
+        overviewButton.setOnClickListener {
+            openOverview()
+        }
+    }
+
+    fun setMenuButtonsVisibility(shouldBeVisible : Boolean){
+        val openFileButton: Button = findViewById(R.id.button_file_open)
+        val saveFileButton: Button = findViewById(R.id.button_file_save)
+        val overviewButton: Button = findViewById(R.id.overviewButton)
+        if (shouldBeVisible){
+            openFileButton.visibility = View.VISIBLE
+            saveFileButton.visibility = View.VISIBLE
+            overviewButton.visibility = View.VISIBLE
+            menuIsVisible = true
+        }
+        else {
+            openFileButton.visibility = View.INVISIBLE
+            saveFileButton.visibility = View.INVISIBLE
+            overviewButton.visibility = View.INVISIBLE
+            menuIsVisible = false
+        }
+    }
+
+    fun toggleMenuButtonsVisibility(){
+        setMenuButtonsVisibility(!menuIsVisible)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -183,8 +215,8 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
             timeSignatureLayout = addTimeSignatureLayout(exampleScore.barList[0].timeSignature)
             addNoteInputSelectionLayout()
             getStatusBarHeight()
+            initMenu()
         }
-        initButtonGroups()
     }
 
     /**
@@ -390,8 +422,18 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (ev != null){
-            if (ev.x <= mainWidth * 0.85 || ev.y >= statusBarHeight + mainHeight * 0.375){
-                if (noteInputSelectionVisible) toggleNoteInputSelectionVisibility()
+            if (noteInputSelectionVisible){
+                if (ev.x <= mainWidth * 0.85 || ev.y >= statusBarHeight + mainHeight * 0.375){
+                    toggleNoteInputSelectionVisibility()
+                }
+            }
+            if (menuIsVisible){
+                val buttonMenuLayout = findViewById<LinearLayout>(R.id.buttonMenu)
+                val menuWidth = buttonMenuLayout.width
+                val menuHeight = buttonMenuLayout.height
+                if (ev.x > menuWidth || ev.y > statusBarHeight + menuHeight){
+                    toggleMenuButtonsVisibility()
+                }
             }
         }
 
@@ -542,7 +584,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         }
     }
 
-    fun openOverview(view: View){
+    fun openOverview(){
         val currentScoreEditingLayout = scoreEditingLayout
             ?: throw IllegalStateException("Can't change to overview activity without score from scoreEditingLayout.")
 
