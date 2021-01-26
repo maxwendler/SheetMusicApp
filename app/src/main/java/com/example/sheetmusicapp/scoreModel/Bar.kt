@@ -1,5 +1,6 @@
 package com.example.sheetmusicapp.scoreModel
 
+import java.io.Serializable
 import kotlin.IllegalArgumentException
 import kotlin.IllegalStateException
 
@@ -14,7 +15,7 @@ import kotlin.IllegalStateException
  * @constructor Creates a bar which contains the given voices, with the given time signature and bar number.
  * @author Max Wendler
  */
-class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<Int,MutableList<RhythmicInterval>>) {
+class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<Int,MutableList<RhythmicInterval>>) : Serializable {
 
     var timeSignature = initTimeSignature
         set(value) {

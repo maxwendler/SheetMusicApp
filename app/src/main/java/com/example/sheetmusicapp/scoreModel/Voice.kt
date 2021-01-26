@@ -1,5 +1,6 @@
 package com.example.sheetmusicapp.scoreModel
 
+import java.io.Serializable
 import java.lang.IllegalArgumentException
 import kotlin.math.max
 
@@ -25,7 +26,7 @@ enum class StemDirection{
  * @throws IllegalArgumentException When [intervals] is empty. The "emptiest" voices that should be created should contain rests at least.
  * @throws IllegalArgumentException When one element of [intervals] exceeds the length of units of the given [TimeSignature].
  */
-class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: TimeSignature) {
+class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: TimeSignature) : Serializable{
 
     private lateinit var subGroups: List<SubGroup>
     private val intervalSubGroupIdxs: MutableMap<RhythmicInterval, Int> = mutableMapOf()
@@ -227,7 +228,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: Ti
  * positions iteratively. Is calculated by the [Voice] a sub group is part of.
  * @throws IllegalArgumentException When a given interval exceeds the given [startUnit] or [endUnit].
  */
-class SubGroup (private val intervals: MutableList<RhythmicInterval>, private val startUnit: Int, private val endUnit: Int){
+class SubGroup (private val intervals: MutableList<RhythmicInterval>, private val startUnit: Int, private val endUnit: Int) : Serializable{
 
     var paddingFactor : Int = 0
     var lastInterval : RhythmicInterval? = null

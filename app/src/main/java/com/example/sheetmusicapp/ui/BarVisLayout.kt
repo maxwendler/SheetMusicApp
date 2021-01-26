@@ -44,7 +44,7 @@ const val dotNoteDistanceToNoteHeadHeightRatio = dotNoteDistanceToNoteHeadWidthR
 const val barStrokeWidthToBarHeightRatio = 0.005
 
 // Constant specifying the combined percentage of width of the padding elements on the right and the left of a UI bar.
-const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.15
+const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.2
 // Constant specifying the combined percentage of width of all notes, depending on the padding fractions.
 const val BAR_NOTES_PERCENT = 1 - BAR_LEFTRIGHT_PADDING_PERCENT
 const val WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT = 0.025

@@ -1,5 +1,6 @@
 package com.example.sheetmusicapp.scoreModel
 
+import java.io.Serializable
 import java.lang.IllegalArgumentException
 import java.lang.IllegalStateException
 
@@ -43,7 +44,7 @@ val basicRhythmicLengthsInUnits: Map<BasicRhythmicLength, Int> = mapOf(
  * @throws IllegalStateException When a given BasicRhytmicLength instance has no mapped value in units in basicRhytmicLengthsInUnits.
  * @author Max Wendler
  */
-class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: LengthModifier = LengthModifier.NONE) {
+class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: LengthModifier = LengthModifier.NONE) : Serializable {
 
     var basicLength = initBasicLength
         private set
@@ -79,7 +80,7 @@ class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: L
      * @throws IllegalStateException When a [BasicRhythmicLength] was used that's not mapped in [basicRhythmicLengthsInUnits].
      * @return [RhythmicLength]
      */
-    fun change(newLength: RhythmicLength) : RhythmicLength {
+    fun change(newLength: RhythmicLength) : RhythmicLength{
 
         val newBasicLength = newLength.basicLength
         val newLengthMod = newLength.lengthModifier

@@ -1,5 +1,7 @@
 package com.example.sheetmusicapp.scoreModel
 
+import java.io.Serializable
+
 /**
  * Enumeration of the different note head types supported by the app.
  *
@@ -23,7 +25,7 @@ enum class NoteHeadType{
  * Note height must be between 0 and 12. Will represent a rest if empty map is given.
  * @author Max Wendler
  */
-class RhythmicInterval(private val length : RhythmicLength, private val noteHeads: MutableMap<Int, NoteHeadType>, initStartUnit: Int) {
+class RhythmicInterval(private val length : RhythmicLength, private val noteHeads: MutableMap<Int, NoteHeadType>, initStartUnit: Int) : Serializable{
     // Initialize as rest if constructed without notes.
     var isRest = noteHeads.isEmpty()
         private set

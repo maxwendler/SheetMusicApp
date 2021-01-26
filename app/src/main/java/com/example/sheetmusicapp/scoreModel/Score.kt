@@ -1,5 +1,7 @@
 package com.example.sheetmusicapp.scoreModel
 
+import java.io.Serializable
+
 /**
  * Instances are drum scores consisting of a list of bars and a title.
  *
@@ -9,7 +11,7 @@ package com.example.sheetmusicapp.scoreModel
  * @constructor Creates a score with the given title and the given list of bars.
  * @author Max Wendler
  */
-class Score(bars: List<Bar>, var title: String = "Title") {
+class Score(bars: List<Bar>, var title: String = "Title") : Serializable {
 
     val barList = bars.toMutableList()
     var length = bars.size
@@ -31,6 +33,5 @@ class Score(bars: List<Bar>, var title: String = "Title") {
             }
             return Score(barList, title)
         }
-
     }
 }

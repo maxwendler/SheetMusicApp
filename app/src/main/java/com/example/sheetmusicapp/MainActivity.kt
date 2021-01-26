@@ -24,9 +24,11 @@ import com.example.sheetmusicapp.scoreModel.*
 import com.example.sheetmusicapp.ui.*
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.GsonBuilder
+import java.io.Serializable
 
 const val CREATE_FILE = 1
 const val PICK_FILE = 2
+const val SELECT_BAR = 3
 
 const val dotToCrossedDotRatio = 0.619
 
@@ -89,6 +91,23 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
 //                }
             }
         }
+        if (requestCode == SELECT_BAR && resultCode == Activity.RESULT_OK){
+            if (data == null){
+                throw IllegalArgumentException("No bar number data was provided!")
+            }
+            val barNr : Int = data.getIntExtra("barNr", 0)
+            if (barNr == 0){
+                throw IllegalStateException("No bar number was provided as data intent extra.")
+            }
+            val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't update bar vis if scoreEditingLayout is null!")
+            currentScoreEditingLayout.goToBar(barNr, editingMode)
+
+            val previousBarButton = findViewById<ImageButton>(R.id.prevButton)
+            previousBarButton.isClickable = barNr > 1
+            currentScoreEditingLayout.previousButtonDisabled = false
+            updateTimeSignatureLayout(currentScoreEditingLayout.bar.timeSignature)
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -131,11 +150,11 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         initParser()
 
 
-        val exampleScore = Score.makeEmpty(bars = 1, timeSignature =  TimeSignature(4, 4))
+        val exampleScore = Score.makeEmpty(bars = 128, timeSignature =  TimeSignature(4, 4))
         val exampleBar = Bar.makeEmpty(1, TimeSignature(4, 4))
         exampleScore.barList[0] = exampleBar
-        exampleScore.barList.add(Bar.makeEmpty(2, TimeSignature(4, 4)))
-        exampleScore.barList.add(Bar.makeEmpty(3, TimeSignature(6, 8)))
+        exampleScore.barList[1] = Bar.makeEmpty(2, TimeSignature(6, 4))
+        exampleScore.barList[2] = Bar.makeEmpty(3, TimeSignature(6, 8))
 
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 0)
         exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 1)
@@ -521,8 +540,15 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
                 }
             }
         }
-
     }
 
+    fun openOverview(view: View){
+        val currentScoreEditingLayout = scoreEditingLayout
+            ?: throw IllegalStateException("Can't change to overview activity without score from scoreEditingLayout.")
 
+        val intent = Intent(this, OverviewActivity::class.java).apply {
+            putExtra("score", currentScoreEditingLayout.score)
+        }
+        startActivityForResult(intent, SELECT_BAR)
+    }
 }

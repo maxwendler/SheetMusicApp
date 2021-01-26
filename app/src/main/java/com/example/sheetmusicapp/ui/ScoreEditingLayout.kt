@@ -11,7 +11,7 @@ import com.example.sheetmusicapp.scoreModel.*
 import java.lang.ClassCastException
 import kotlin.IllegalArgumentException
 
-class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,private val barHeight: Int, score: Score, initBarIdx : Int = 0) : ConstraintLayout(context) {
+class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,private val barHeight: Int, val score: Score, initBarIdx : Int = 0) : ConstraintLayout(context) {
 
     val voiceGridOverlays : MutableMap<Int, BarEditingOverlayLayout> = mutableMapOf()
     var activeVoiceOverlayNum = 1
@@ -249,5 +249,17 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
                     ?: throw IllegalStateException("Can't update bar visualization because barVisLayout is null!")
             currentBarVisLayout.visualizeBar()
         }
+    }
+
+    fun goToBar(barNr: Int, editingMode: MainActivity.EditingMode){
+        if (barNr > bars.size){
+            throw IllegalArgumentException("barNr exceeds bar list!")
+        }
+        barIdx = barNr - 1
+        bar = bars[barIdx]
+        if (bar.barNr != barNr){
+            throw IllegalStateException("Bar at idx derived from barNr does not have this bar number!")
+        }
+        updateOverlays(bar, editingMode)
     }
 }

@@ -1,5 +1,6 @@
 package com.example.sheetmusicapp.scoreModel
 
+import java.io.Serializable
 import java.lang.IllegalStateException
 
 /**
@@ -15,7 +16,7 @@ import java.lang.IllegalStateException
  * @throws IllegalArgumentException When an instance is constructed with properties of a time signature not supported.
  * @author Max Wendler
  */
-class TimeSignature(val numerator: Int, val denominator: Int) {
+class TimeSignature(val numerator: Int, val denominator: Int) : Serializable {
 
     var numberOfSubGroups : Int = 1
         private set

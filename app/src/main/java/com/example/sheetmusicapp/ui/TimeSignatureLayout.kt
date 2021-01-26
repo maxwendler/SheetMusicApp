@@ -1,6 +1,7 @@
 package com.example.sheetmusicapp.ui
 
 import android.content.Context
+import android.graphics.Paint
 import android.view.Gravity
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -29,6 +30,7 @@ class TimeSignatureLayout (context: Context, initTimeSignature: TimeSignature) :
 
     var numeratorView : TextView? = null
     var denominatorView : TextView? = null
+    var makeTextBold = false
 
     init {
         orientation = VERTICAL
@@ -37,6 +39,10 @@ class TimeSignatureLayout (context: Context, initTimeSignature: TimeSignature) :
             numeratorView = addNumberLayout(numerator)
             addHorizontalStroke()
             denominatorView = addNumberLayout(denominator)
+            if (makeTextBold){
+                numeratorView?.paintFlags = Paint.FAKE_BOLD_TEXT_FLAG
+                denominatorView?.paintFlags = Paint.FAKE_BOLD_TEXT_FLAG
+            }
         }
     }
 
@@ -54,7 +60,7 @@ class TimeSignatureLayout (context: Context, initTimeSignature: TimeSignature) :
     }
 
     private fun addHorizontalStroke() {
-        val strokeWidth : Int = (height * barStrokeWidthToBarHeightRatio * 2).toInt()
+        val strokeWidth : Int = (height * barStrokeWidthToBarHeightRatio * 5).toInt()
         val strokeView = ImageView(context)
         strokeView.id = generateViewId()
         strokeView.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, strokeWidth)
@@ -67,5 +73,4 @@ class TimeSignatureLayout (context: Context, initTimeSignature: TimeSignature) :
         numerator = timeSignature.numerator
         denominator = timeSignature.denominator
     }
-
 }
