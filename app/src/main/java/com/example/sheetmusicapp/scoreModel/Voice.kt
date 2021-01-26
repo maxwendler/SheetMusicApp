@@ -339,7 +339,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
         for (interval in sortedIntervals){
             if (interval.isRest){
                 if (newConnectedList.isNotEmpty()){
-                    if (connectedIntervals.size > 1){
+                    if (newConnectedList.size > 1){
                         connectedIntervals.add(newConnectedList)
                     }
                     newConnectedList = mutableListOf<RhythmicInterval>()
@@ -358,7 +358,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                             if (length.lengthInUnits in listOf(RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits, RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits)) {
                                 newConnectedList.add(interval)
                             } else {
-                                if (connectedIntervals.size > 1){
+                                if (newConnectedList.size > 1){
                                     connectedIntervals.add(newConnectedList)
                                 }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
@@ -367,7 +367,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                             if (length.lengthInUnits == RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits) {
                                 newConnectedList.add(interval)
                             } else {
-                                if (connectedIntervals.size > 1){
+                                if (newConnectedList.size > 1){
                                     connectedIntervals.add(newConnectedList)
                                 }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
@@ -378,7 +378,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                                             RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED))) {
                                 newConnectedList.add(interval)
                             } else {
-                                if (connectedIntervals.size > 1){
+                                if (newConnectedList.size > 1){
                                     connectedIntervals.add(newConnectedList)
                                 }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
