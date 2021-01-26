@@ -128,7 +128,7 @@ class RhythmicLength(initBasicLength: BasicRhythmicLength, initLengthModifier: L
  * @param units A rhythmic length in units.
  * @throws IllegalStateException When the given length can't be filled with available RhythmicLength instances for some reason.
  */
-fun lengthsFromUnitLengthAsc(units: Int) : MutableList<RhythmicLength>{
+fun lengthsFromUnitLengthDesc(units: Int) : MutableList<RhythmicLength>{
 
     // List of all rhythmic length instances that can exist in the app.
     val allRhythmicLengthsOrderedDesc : List<RhythmicLength> = listOf(
@@ -166,5 +166,9 @@ fun lengthsFromUnitLengthAsc(units: Int) : MutableList<RhythmicLength>{
         }
     }
 
-    return rhythmicLengths.asReversed()
+    return rhythmicLengths
+}
+
+fun lengthsFromUnitLengthAsc(units: Int) : MutableList<RhythmicLength> {
+    return lengthsFromUnitLengthDesc(units).asReversed()
 }

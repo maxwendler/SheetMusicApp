@@ -213,10 +213,11 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         val currentBarNrView = barNrView
                 ?: throw IllegalStateException("Bar number view needs updating, but does not exist!")
         currentBarNrView.text = bar.barNr.toString()
-
+        val nonVisualizedVoiceNums = mutableListOf(1,2,3,4)
         for (voicePair in bar.voices){
             // voice only has common stem direction if there are multiple voices
             val voice = voicePair.value
+            nonVisualizedVoiceNums.remove(voicePair.key)
             val voiceDirection: StemDirection? = voice.stemDirection
             val subGroups: MutableList<SubGroup> = voice.getCopyOfSubGroups()
             val intervalSubGroupIdxs: Map<RhythmicInterval, Int> = voice.getIntervalSubGroupIdxsCopy()
@@ -288,6 +289,10 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
             }
             editingOverlayCallback?.invoke(horizontalMargins, voicePair.key)
         }
+
+        for (voiceNum in nonVisualizedVoiceNums){
+            editingOverlayCallback?.invoke(mutableListOf(), voiceNum)
+        }
     }
 
     private fun calculateIntervalDoubleConnectionType(interval: RhythmicInterval, connectionGroup: MutableList<RhythmicInterval>) : IntervalDoubleConnectionType {
@@ -296,7 +301,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
             throw IllegalArgumentException("The given interval is not part of the given connection group!")
         }
 
-        var intervalDoubleConnectionType : IntervalDoubleConnectionType
+        val intervalDoubleConnectionType : IntervalDoubleConnectionType
 
         if (intervalIdx == connectionGroup.size - 1){
             intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE

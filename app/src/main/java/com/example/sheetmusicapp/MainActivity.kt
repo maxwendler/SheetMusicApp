@@ -3,11 +3,8 @@ package com.example.sheetmusicapp
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Rect
-import android.media.Image
-import android.opengl.Visibility
 import android.os.Build
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -21,14 +18,10 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import androidx.core.view.isVisible
 import androidx.core.view.setPadding
-import androidx.fragment.app.DialogFragment
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
-import com.example.sheetmusicapp.ui.LengthSelectionDialogFragment
-import com.example.sheetmusicapp.ui.ScoreEditingLayout
-import com.example.sheetmusicapp.ui.TimeSignatureDialogFragment
-import com.example.sheetmusicapp.ui.TimeSignatureLayout
+import com.example.sheetmusicapp.ui.*
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.GsonBuilder
 
@@ -37,14 +30,16 @@ const val PICK_FILE = 2
 
 const val dotToCrossedDotRatio = 0.619
 
-class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatureListener, LengthSelectionDialogFragment.NewLengthListener {
+class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatureListener, LengthSelectionDialogFragment.NewLengthListener, BarEditingOverlayLayout.GridActionUpListener {
     var parser = GsonBuilder()
     var scoreEditingLayout : ScoreEditingLayout? = null
     var timeSignatureLayout: TimeSignatureLayout? = null
     var noteInputSelectionVisible = false
     var inputNoteHeadType : NoteHeadType? = NoteHeadType.ELLIPTIC
     var inputIsDotted : Boolean = false
-    var inputLength : BasicRhythmicLength = BasicRhythmicLength.QUARTER
+    var inputBasicLength : BasicRhythmicLength = BasicRhythmicLength.QUARTER
+    var editingMode: EditingMode = EditingMode.ADD
+    var voiceNum : Int = 1
     var mainWidth : Int = 0
     var mainHeight : Int = 0
     var statusBarHeight : Int = 0
@@ -168,6 +163,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
             scoreEditingLayout = addScoreEditingLayout(exampleScore)
             timeSignatureLayout = addTimeSignatureLayout(exampleScore.barList[0].timeSignature)
             addNoteInputSelectionLayout()
+            getStatusBarHeight()
         }
         initButtonGroups()
     }
@@ -238,14 +234,15 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         val voiceNumButton = findViewById<Button>(R.id.voiceNumButton)
         val currentNum = voiceNumButton.text.toString().toInt()
         val newNum = currentNum % 4 + 1
+        voiceNum = newNum
         voiceNumButton.text = newNum.toString()
-        scoreEditingLayout?.changeVisibleGrid(newNum)
+        scoreEditingLayout?.changeVoiceGrid(newNum, editingMode)
     }
 
     fun nextBar(view: View){
         val currentScoreEditingLayout = scoreEditingLayout
                 ?: throw IllegalStateException("Can't change bar without a score layout!")
-        currentScoreEditingLayout.nextBar()
+        currentScoreEditingLayout.nextBar(editingMode)
         val newTimeSignature = currentScoreEditingLayout.bar.timeSignature
         updateTimeSignatureLayout(newTimeSignature)
     }
@@ -253,7 +250,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
     fun previousBar(view: View){
         val currentScoreEditingLayout = scoreEditingLayout
                 ?: throw IllegalStateException("Can't change bar without a score layout!")
-        currentScoreEditingLayout.previousBar()
+        currentScoreEditingLayout.previousBar(editingMode)
         val newTimeSignature = currentScoreEditingLayout.bar.timeSignature
         updateTimeSignatureLayout(newTimeSignature)
     }
@@ -318,7 +315,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
             val imageButton = it as ImageButton
             when (inputNoteHeadType){
                 NoteHeadType.ELLIPTIC -> {
-                    if (inputLength in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH, BasicRhythmicLength.QUARTER)) {
+                    if (inputBasicLength in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH, BasicRhythmicLength.QUARTER)) {
                         imageButton.setImageResource(R.drawable.ic_x_notehead)
                         inputNoteHeadType = NoteHeadType.CROSS
                     }
@@ -343,7 +340,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         toggleDottedButton.setOnClickListener {
             val imageButton = it as ImageButton
             if (!inputIsDotted){
-                if (inputLength != BasicRhythmicLength.SIXTEENTH) {
+                if (inputBasicLength != BasicRhythmicLength.SIXTEENTH) {
                     imageButton.setImageResource(R.drawable.black_circle)
                     imageButton.setPadding(55)
                     inputIsDotted = true
@@ -374,7 +371,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (ev != null){
-            if (ev.x <= mainWidth * 0.85 || ev.y >= (statusBarHeight + mainHeight * 0.375) * 1.2){
+            if (ev.x <= mainWidth * 0.85 || ev.y >= statusBarHeight + mainHeight * 0.375){
                 if (noteInputSelectionVisible) toggleNoteInputSelectionVisibility()
             }
         }
@@ -396,9 +393,9 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
 
     override fun onLengthDialogPositiveClick(newLength: BasicRhythmicLength?) {
         if (newLength != null){
-            if (newLength != inputLength){
+            if (newLength != inputBasicLength){
                 if (newLength != BasicRhythmicLength.SIXTEENTH || !inputIsDotted) {
-                    inputLength = newLength
+                    inputBasicLength = newLength
                     changeLengthButton.setText(when (newLength) {
                         BasicRhythmicLength.WHOLE -> "1/1"
                         BasicRhythmicLength.HALF -> "1/2"
@@ -420,20 +417,20 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
 
     fun setInputSelectionSummaryImage(){
         toggleOpenedButton.setImageResource(when(inputNoteHeadType){
-            NoteHeadType.ELLIPTIC -> when(inputLength){
+            NoteHeadType.ELLIPTIC -> when(inputBasicLength){
                 BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
                 BasicRhythmicLength.HALF -> R.drawable.ic_half
                 BasicRhythmicLength.QUARTER -> R.drawable.ic_quarter
                 BasicRhythmicLength.EIGHTH -> R.drawable.ic_eighth
                 BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_sixteenth
             }
-            NoteHeadType.CROSS -> when(inputLength){
+            NoteHeadType.CROSS -> when(inputBasicLength){
                 BasicRhythmicLength.QUARTER -> R.drawable.ic_x_quarter
                 BasicRhythmicLength.EIGHTH -> R.drawable.ic_x_eighth
                 BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_x_sixteenth
                 else -> throw IllegalStateException("Cross note heads are only supported for quarters, 8ths and 16ths!")
             }
-            null -> when(inputLength){
+            null -> when(inputBasicLength){
                 BasicRhythmicLength.WHOLE, BasicRhythmicLength.HALF -> R.drawable.ic_rest_half
                 BasicRhythmicLength.QUARTER -> R.drawable.ic_rest_quarter
                 BasicRhythmicLength.EIGHTH -> R.drawable.ic_rest_eighth
@@ -442,8 +439,90 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         })
 
         toggleOpenedButton.scaleY =
-                if (inputLength == BasicRhythmicLength.WHOLE && inputNoteHeadType == null) -1f
+                if (inputBasicLength == BasicRhythmicLength.WHOLE && inputNoteHeadType == null) -1f
                 else 1f
 
     }
+
+    enum class EditingMode{
+        ADD,
+        DELETE
+    }
+
+    fun toggleEditingMode(view: View){
+        val editModeButton = findViewById<Button>(R.id.editModeButton)
+        when (editingMode){
+            EditingMode.ADD -> {
+                editModeButton.text = "delete"
+                editingMode = EditingMode.DELETE
+            }
+            EditingMode.DELETE -> {
+                editModeButton.text = "add"
+                editingMode = EditingMode.ADD
+            }
+        }
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't update overlay grids if scoreEditingLayout is null!")
+        currentScoreEditingLayout.changeVoiceGrid(voiceNum, editingMode)
+    }
+
+    override fun handleActionUp(intervalIdx: Int, musicHeight: Int) {
+        if (musicHeight < 0 || musicHeight > 12){
+            throw IllegalArgumentException("musicHeight must be in 0 to 12.")
+        }
+
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Score editing layout must not be null!")
+        val voice = currentScoreEditingLayout.bar.voices[voiceNum]
+
+        if (voice != null){
+            val voiceIntervals = voice.intervals
+            if (intervalIdx >= voiceIntervals.size){
+                throw IllegalArgumentException("Given intervalIdx exceeds interval list of voice!")
+            }
+
+            when (editingMode){
+                EditingMode.ADD -> {
+                    val inputLength =
+                            if (inputIsDotted) RhythmicLength(inputBasicLength, LengthModifier.DOTTED)
+                            else RhythmicLength(inputBasicLength)
+                    val currentInputNoteHeadType = inputNoteHeadType
+
+                    if (currentInputNoteHeadType == null){
+                        currentScoreEditingLayout.bar.addRest(voiceNum, inputLength, intervalIdx)
+                    }
+                    else {
+                        currentScoreEditingLayout.bar.addNote(voiceNum, inputLength, currentInputNoteHeadType, musicHeight, intervalIdx)
+                    }
+                }
+
+                EditingMode.DELETE -> {
+                    currentScoreEditingLayout.bar.removeNote(voiceNum, musicHeight, intervalIdx)
+                    currentScoreEditingLayout.changeVoiceGrid(voiceNum, editingMode)
+                }
+            }
+
+            val currentBarVisLayout = currentScoreEditingLayout.barVisLayout
+                    ?: throw IllegalStateException("Can't update bar vis when barVisLayout is null!")
+            currentBarVisLayout.visualizeBar()
+        }
+        else {
+            if (editingMode == EditingMode.ADD){
+                val currentInputNoteHeadType = inputNoteHeadType
+                if (currentInputNoteHeadType != null){
+                    val inputLength =
+                            if (inputIsDotted) RhythmicLength(inputBasicLength, LengthModifier.DOTTED)
+                            else RhythmicLength(inputBasicLength)
+                    currentScoreEditingLayout.bar.addNote(voiceNum, inputLength, currentInputNoteHeadType, musicHeight, 0)
+
+                    val currentBarVisLayout = currentScoreEditingLayout.barVisLayout
+                            ?: throw IllegalStateException("Can't update bar vis when barVisLayout is null!")
+                    currentBarVisLayout.visualizeBar()
+                }
+            }
+        }
+
+    }
+
+
 }

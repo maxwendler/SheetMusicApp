@@ -6,7 +6,9 @@ import android.widget.ImageButton
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
+import com.example.sheetmusicapp.MainActivity
 import com.example.sheetmusicapp.scoreModel.*
+import java.lang.ClassCastException
 import kotlin.IllegalArgumentException
 
 class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,private val barHeight: Int, score: Score, initBarIdx : Int = 0) : ConstraintLayout(context) {
@@ -43,6 +45,12 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
             for (i in 1..4){
                 val newOverlay = addBarEditingOverlayLayout()
                 voiceGridOverlays[i] = newOverlay
+                newOverlay.listener = try {
+                    context as MainActivity
+                }
+                catch (e: ClassCastException){
+                    throw IllegalStateException("Context must be MainActivity!")
+                }
                 newOverlay.visibility = INVISIBLE
             }
             voiceGridOverlays[1]?.visibility = VISIBLE
@@ -89,7 +97,7 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
         return barEditingOverlayLayout
     }
 
-    fun changeVisibleGrid(voiceNum: Int){
+    fun changeVoiceGrid(voiceNum: Int, editingMode: MainActivity.EditingMode){
         if (voiceNum !in 1..4){
             throw IllegalArgumentException("Only voices 1 to 4 can exist!")
         }
@@ -97,11 +105,22 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
         voiceGridOverlays.values.forEach {
             it.visibility = INVISIBLE
         }
-        voiceGridOverlays[voiceNum]?.visibility = VISIBLE
+
+        when (editingMode){
+            MainActivity.EditingMode.ADD -> {
+                voiceGridOverlays[voiceNum]?.visibility = VISIBLE
+            }
+            MainActivity.EditingMode.DELETE -> {
+                if (bar.voices.containsKey(voiceNum)){
+                    voiceGridOverlays[voiceNum]?.visibility = VISIBLE
+                }
+            }
+        }
+
         activeVoiceOverlayNum = voiceNum
     }
 
-    fun nextBar(){
+    fun nextBar(editingMode: MainActivity.EditingMode){
         if (previousButtonDisabled) {
             prevBarButton.isClickable = true
             previousButtonDisabled = false
@@ -113,11 +132,11 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
         }
 
         barIdx++
-        updateOverlays(bars[barIdx])
+        updateOverlays(bars[barIdx], editingMode)
         bar = bars[barIdx]
     }
 
-    fun previousBar(){
+    fun previousBar(editingMode: MainActivity.EditingMode){
         if (previousButtonDisabled){
             prevBarButton.isClickable = false
             return
@@ -137,31 +156,24 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
         if (bar.isBarOfRests() && bar.timeSignature.equals(previousBar.timeSignature) && bar == bars.last()){
             bars.removeAt(barIdx + 1)
         }
-        updateOverlays(previousBar)
+        updateOverlays(previousBar, editingMode)
         bar = previousBar
     }
 
-    private fun updateOverlays(nextBar: Bar){
-        val voiceNumsToRemove = mutableListOf<Int>()
-        for (voiceNum in voiceGridOverlays.keys){
-            if (nextBar.voices[voiceNum] == null){
-                voiceNumsToRemove.add(voiceNum)
-            }
-        }
-        voiceNumsToRemove.forEach {
-            removeView(voiceGridOverlays[it])
-            voiceGridOverlays.remove(it)
-        }
-
-        for (voiceNum in nextBar.voices.keys){
-            if (voiceGridOverlays[voiceNum] == null){
-                voiceGridOverlays[voiceNum] = addBarEditingOverlayLayout()
-            }
-        }
-
+    private fun updateOverlays(nextBar: Bar, editingMode: MainActivity.EditingMode){
         voiceGridOverlays.forEach{
             it.value.visibility =
-                    if (it.key == activeVoiceOverlayNum) VISIBLE
+                    if (it.key == activeVoiceOverlayNum) {
+                        when (editingMode){
+                            MainActivity.EditingMode.ADD -> VISIBLE
+                            MainActivity.EditingMode.DELETE -> {
+                                if (nextBar.voices.containsKey(it.key)){
+                                    VISIBLE
+                                }
+                                else INVISIBLE
+                            }
+                        }
+                    }
                     else INVISIBLE
         }
     }
@@ -216,6 +228,7 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
                             var startUnit = currentLastInterval.endUnit + 1
                             for (length in remainderLengths){
                                 voice.intervals.add(RhythmicInterval(length, mutableMapOf(), startUnit))
+                                startUnit += length.lengthInUnits
                             }
                             voice.initializeSubGroups()
                         }

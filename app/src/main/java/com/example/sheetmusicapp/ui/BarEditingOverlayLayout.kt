@@ -10,16 +10,22 @@ import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import com.example.sheetmusicapp.R
 import java.lang.IllegalArgumentException
-import java.lang.IllegalStateException
+import kotlin.IllegalStateException
 
 class BarEditingOverlayLayout(context: Context, val barHeight: Int) : ConstraintLayout(context) {
 
     val grid : MutableList<List<GridCellView>> = mutableListOf()
     var horizontalMargins : MutableList<Int>? = null
     var highlightedColumnIdx : Int? = null
+    var highlightedRowIdx : Int? = null
+    lateinit var listener: GridActionUpListener
 
     init {
         doOnLayout { if (horizontalMargins != null) createOverlay() }
+    }
+
+    interface GridActionUpListener {
+        fun handleActionUp(intervalIdx: Int, musicHeight: Int)
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
@@ -31,7 +37,13 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
 
             if (event.action == MotionEvent.ACTION_MOVE){
                 if (event.y >= 0 && event.y <= this.height)
-                changeRowHighlighting(event.y)
+                    highlightCellColumnAndRow(event.x, event.y)
+                else if (event.y < 0){
+                    highlightCellColumnAndRow(event.x, 1f)
+                }
+                else if (event.y > this.height){
+                    highlightCellColumnAndRow(event.x, height - 1f)
+                }
             }
 
             if (event.action == MotionEvent.ACTION_UP){
@@ -41,7 +53,16 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
                         cell.background.alpha = 0
                     }
                 }
+                val currentIntervalIdx = highlightedColumnIdx
+                val currentMusicHeight = highlightedRowIdx
+                if (currentIntervalIdx != null && currentMusicHeight != null){
+                    listener.handleActionUp(currentIntervalIdx, currentMusicHeight)
+                }
+                else {
+                    throw IllegalStateException("Highlighted row and column indices must not be null!")
+                }
                 highlightedColumnIdx = null
+                highlightedRowIdx = null
             }
             return true
         }
@@ -76,11 +97,8 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         val gridCell = findGridCell(touchDownX.toInt(),height - touchDownY.toInt())
 
         if (gridCell != null){
-            for (columnIdx in grid.indices) {
-                if (grid[columnIdx].contains(gridCell)){
-                    highlightedColumnIdx = columnIdx
-                }
-            }
+            highlightedColumnIdx = gridCell.horizontalIdx
+            highlightedRowIdx = gridCell.verticalIdx
 
             gridCell.setBackgroundColor(resources.getColor(R.color.black, resources.newTheme()))
             gridCell.background.alpha = 60
@@ -165,7 +183,7 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         val currentMargins = horizontalMargins
         if (currentMargins != null) {
             if (currentMargins.isEmpty()) {
-                throw IllegalArgumentException("List of horizontal margins is empty!")
+                newGrid.add(addConstrainedGridColumn(0, width, 0))
             } else {
                 if (currentMargins.last() > width) {
                     throw IllegalArgumentException("Last horizontalMargin exceeds bar width!")

@@ -145,6 +145,11 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                 voice.recalculateSubGroupsFrom(intervalIdx)
             }
             voice.intervals[intervalIdx].makeRest()
+
+            if (voice.isVoiceOfRests() && voices.size > 1){
+                voices.remove(voiceNum)
+            }
+            calculateVoiceStemDirections()
         }
     }
 
@@ -181,6 +186,33 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                 changeIntervalLength(voice.intervals, length, intervalIdx)
             }
             voice.recalculateSubGroupsFrom(intervalIdx)
+        }
+
+        val numsOfVoicesToRemove = mutableListOf<Int>()
+        for (pair in voices){
+            if (pair.value != voice){
+                if (pair.value.isVoiceOfRests()){
+                    numsOfVoicesToRemove.add(pair.key)
+                }
+            }
+        }
+        numsOfVoicesToRemove.forEach { voices.remove(it) }
+        calculateVoiceStemDirections()
+    }
+
+    fun removeNote(voiceNum: Int, height: Int, intervalIdx: Int){
+
+        val voice = voices[voiceNum]
+                ?: throw IllegalArgumentException("Voice of the given number does not exist!")
+        if (intervalIdx >= voice.intervals.size){
+            throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
+        }
+        val intervalAtIdx = voice.intervals[intervalIdx]
+        if (intervalAtIdx.getNoteHeadsCopy().containsKey(height)){
+            intervalAtIdx.removeNoteHead(height)
+            if (voice.isVoiceOfRests() && voices.size > 1){
+                voices.remove(voiceNum)
+            }
             calculateVoiceStemDirections()
         }
     }
@@ -235,61 +267,70 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
 
         val intervalAtIdx = voiceIntervals[intervalIdx]
         // fault tolerance for too large input
-        if (intervalAtIdx.startUnit + length.lengthInUnits - 1 > timeSignature.units){
-            throw IllegalArgumentException("The given interval exceeds the rhythmic length of the bar when placed in the position given by intervalIdx.")
-        }
+        if (intervalAtIdx.startUnit + length.lengthInUnits - 1 <= timeSignature.units){
+            // Find following intervals fully or partially (cutInTwoInterval) swallowed by the growing interval.
+            // Don't delete the intervals that will be fully replaced yet, so unmoved cutInTwoInterval can be handled.
+            val replacingEndUnit = intervalAtIdx.startUnit + (length.lengthInUnits - 1)
+            var cutInTwoInterval : RhythmicInterval? = null
+            var lastReplacedIdx = intervalIdx
+            var potentiallyAlsoReplacedIdx = intervalIdx + 1
+            if (potentiallyAlsoReplacedIdx < voiceIntervals.size) {
 
-        // Find following intervals fully or partially (cutInTwoInterval) swallowed by the growing interval.
-        // Don't delete the intervals that will be fully replaced yet, so unmoved cutInTwoInterval can be handled.
-        val replacingEndUnit = intervalAtIdx.startUnit + (length.lengthInUnits - 1)
-        var cutInTwoInterval : RhythmicInterval? = null
-        var lastReplacedIdx = intervalIdx
-        var potentiallyAlsoReplacedIdx = intervalIdx + 1
-        if (potentiallyAlsoReplacedIdx < voiceIntervals.size) {
-
-            while (voiceIntervals[potentiallyAlsoReplacedIdx].startUnit <= replacingEndUnit) {
-                val potentiallyAlsoReplaced = voiceIntervals[potentiallyAlsoReplacedIdx]
-                if (potentiallyAlsoReplaced.endUnit <= replacingEndUnit) {
-                    lastReplacedIdx = potentiallyAlsoReplacedIdx
-                } else {
-                    cutInTwoInterval = potentiallyAlsoReplaced
-                    break
+                while (voiceIntervals[potentiallyAlsoReplacedIdx].startUnit <= replacingEndUnit) {
+                    val potentiallyAlsoReplaced = voiceIntervals[potentiallyAlsoReplacedIdx]
+                    if (potentiallyAlsoReplaced.endUnit <= replacingEndUnit) {
+                        lastReplacedIdx = potentiallyAlsoReplacedIdx
+                    } else {
+                        cutInTwoInterval = potentiallyAlsoReplaced
+                        break
+                    }
+                    potentiallyAlsoReplacedIdx++
+                    if (potentiallyAlsoReplacedIdx == voiceIntervals.size) break
                 }
-                potentiallyAlsoReplacedIdx++
-                if (potentiallyAlsoReplacedIdx == voiceIntervals.size) break
+
             }
 
-        }
+            // Shorten the interval that's only partially swallowed by the changed one.
+            if (cutInTwoInterval != null){
 
-        // Shorten the interval that's only partially swallowed by the changed one.
-        if (cutInTwoInterval != null){
+                // Calculate the length to shorten to and rhythmic lengths that can be combined to fit it.
+                val remainingUnits = cutInTwoInterval.endUnit - replacingEndUnit
+                val remainderLengths = lengthsFromUnitLengthAsc(remainingUnits)
+                var newStartUnit = replacingEndUnit + 1
 
-            // Calculate the length to shorten to and rhythmic lengths that can be combined to fit it.
-            val remainingUnits = cutInTwoInterval.endUnit - replacingEndUnit
-            val remainderLengths = lengthsFromUnitLengthAsc(remainingUnits)
-            var newStartUnit = replacingEndUnit + 1
+                // Shorten the length of the already existing interval.
+                cutInTwoInterval.startUnit = newStartUnit
+                val newCutInTwoLength = remainderLengths.removeAt(0)
+                cutInTwoInterval.setLength(newCutInTwoLength)
 
-            // Shorten the length of the already existing interval.
-            cutInTwoInterval.startUnit = newStartUnit
-            val newCutInTwoLength = remainderLengths.removeAt(0)
-            cutInTwoInterval.setLength(newCutInTwoLength)
+                // Add following rests if the units remaining of the original shortened interval can be only expressed in multiple rhythmic lengths,
+                // and therefore intervals.
+                newStartUnit += cutInTwoInterval.getLengthCopy().lengthInUnits
+                var newRestIdx = lastReplacedIdx + 1
+                for (newRestLength in remainderLengths){
+                    voiceIntervals.add(newRestIdx, RhythmicInterval.makeRest(newRestLength, newStartUnit))
+                    newStartUnit += newRestLength.lengthInUnits
+                    newRestIdx++
+                }
 
-            // Add following rests if the units remaining of the original shortened interval can be only expressed in multiple rhythmic lengths,
-            // and therefore intervals.
-            newStartUnit += cutInTwoInterval.getLengthCopy().lengthInUnits
-            var newRestIdx = lastReplacedIdx + 1
-            for (newRestLength in remainderLengths){
-                voiceIntervals.add(newRestIdx, RhythmicInterval.makeRest(newRestLength, newStartUnit))
-                newStartUnit += newRestLength.lengthInUnits
-                newRestIdx++
             }
+            intervalAtIdx.setLength(length)
 
+            // Remove intervals fully swallowed by the grown interval.
+            for (i in (intervalIdx+1)..lastReplacedIdx){
+                voiceIntervals.removeAt(intervalIdx + 1)
+            }
         }
-        intervalAtIdx.setLength(length)
-
-        // Remove intervals fully swallowed by the grown interval.
-        for (i in (intervalIdx+1)..lastReplacedIdx){
-            voiceIntervals.removeAt(intervalIdx + 1)
+        else {
+            val remainingUnits = timeSignature.units + 1 - intervalAtIdx.startUnit
+            val remainderLengths = lengthsFromUnitLengthDesc(remainingUnits)
+            val newIntervalLength = remainderLengths.first()
+            if (newIntervalLength.lengthInUnits > intervalAtIdx.getLengthCopy().lengthInUnits){
+                changeIntervalToLarger(voiceIntervals, newIntervalLength, intervalIdx)
+            }
+            else if (newIntervalLength.lengthInUnits < intervalAtIdx.getLengthCopy().lengthInUnits){
+                changeIntervalToSmaller(voiceIntervals, newIntervalLength, intervalIdx)
+            }
         }
     }
 
