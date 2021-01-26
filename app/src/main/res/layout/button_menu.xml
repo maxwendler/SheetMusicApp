@@ -8,12 +8,16 @@
         android:id="@+id/menuButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
         android:text="MENU" />
 
     <Button
         android:id="@+id/button_file_open"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
         android:text="OPEN"
         android:visibility="invisible" />
 
@@ -21,6 +25,8 @@
         android:id="@+id/button_file_save"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
         android:text="save"
         android:visibility="invisible" />
 
@@ -28,6 +34,25 @@
         android:id="@+id/overviewButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="0dp"
         android:text="overview"
+        android:visibility="invisible" />
+
+    <Button
+        android:id="@+id/deleteBarButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:text="delete bar"
+        android:visibility="invisible" />
+
+    <Button
+        android:id="@+id/insertBarButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:text="insert bar"
         android:visibility="invisible" />
 </LinearLayout>

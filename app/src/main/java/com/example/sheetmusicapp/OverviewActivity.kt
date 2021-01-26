@@ -61,7 +61,7 @@ class OverviewActivity : AppCompatActivity() {
             // add page views
             for (i in 1..pageCount){
                 val pageBars =
-                    if (i == 1) score.barList.subList(0, (linesPerPage - 1) * barsPerLine)
+                    if (i == 1) score.barList.subList(0, min((linesPerPage - 1) * barsPerLine, barCount))
                     else {
                         val fromIdx = (linesPerPage - 1) * barsPerLine + (i-2) * linesPerPage * barsPerLine
                         val toIdx = min((linesPerPage - 1) * barsPerLine + (i-1) * linesPerPage * barsPerLine, barCount)

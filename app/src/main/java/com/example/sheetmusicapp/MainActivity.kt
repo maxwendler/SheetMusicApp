@@ -2,6 +2,7 @@ package com.example.sheetmusicapp
 
 import android.app.Activity
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
@@ -18,6 +19,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import androidx.core.view.setPadding
+import androidx.core.view.size
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
@@ -45,6 +47,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
     var mainHeight : Int = 0
     var statusBarHeight : Int = 0
     var menuIsVisible = false
+    var deleteBarButtonDefaultTextColors : ColorStateList? = null
 
     lateinit var toggleOpenedButton: ImageButton
     lateinit var toggleNoteHeadButton: ImageButton
@@ -129,6 +132,10 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         val openFileButton: Button = findViewById(R.id.button_file_open)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
         val overviewButton: Button = findViewById(R.id.overviewButton)
+        val deleteBarButton: Button = findViewById(R.id.deleteBarButton)
+        deleteBarButtonDefaultTextColors = deleteBarButton.textColors
+        val insertBarButton: Button = findViewById(R.id.insertBarButton)
+
         menuButton.setOnClickListener {
             toggleMenuButtonsVisibility()
         }
@@ -151,22 +158,48 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         overviewButton.setOnClickListener {
             openOverview()
         }
+        deleteBarButton.setOnClickListener {
+            deleteBar()
+        }
+        insertBarButton.setOnClickListener {
+            insertBar()
+        }
+
     }
 
     fun setMenuButtonsVisibility(shouldBeVisible : Boolean){
         val openFileButton: Button = findViewById(R.id.button_file_open)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
         val overviewButton: Button = findViewById(R.id.overviewButton)
+        val deleteBarButton: Button = findViewById(R.id.deleteBarButton)
+        val insertBarButton: Button = findViewById(R.id.insertBarButton)
         if (shouldBeVisible){
             openFileButton.visibility = View.VISIBLE
             saveFileButton.visibility = View.VISIBLE
             overviewButton.visibility = View.VISIBLE
+            deleteBarButton.visibility = View.VISIBLE
+            insertBarButton.visibility = View.VISIBLE
+
+            val currentDeleteBarButtonDefaultTextColorId = deleteBarButtonDefaultTextColors
+            if (currentDeleteBarButtonDefaultTextColorId != null) {
+                val currentScoreEditingLayout = scoreEditingLayout
+                        ?: throw IllegalStateException("Can't set bar delete button clickability if 'is only bar' can't be evaluated because scoreEditingLayout is null!")
+                if (currentScoreEditingLayout.bars.size > 1) {
+                    deleteBarButton.isClickable = true
+                    deleteBarButton.setTextColor(deleteBarButtonDefaultTextColors)
+                } else {
+                    deleteBarButton.isClickable = false
+                    deleteBarButton.setTextColor(resources.getColor(R.color.purple_200))
+                }
+            }
             menuIsVisible = true
         }
         else {
             openFileButton.visibility = View.INVISIBLE
             saveFileButton.visibility = View.INVISIBLE
             overviewButton.visibility = View.INVISIBLE
+            deleteBarButton.visibility = View.INVISIBLE
+            insertBarButton.visibility = View.INVISIBLE
             menuIsVisible = false
         }
     }
@@ -182,7 +215,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         initParser()
 
 
-        val exampleScore = Score.makeEmpty(bars = 128, timeSignature =  TimeSignature(4, 4))
+        val exampleScore = Score.makeEmpty(bars = 100, timeSignature =  TimeSignature(4, 4))
         val exampleBar = Bar.makeEmpty(1, TimeSignature(4, 4))
         exampleScore.barList[0] = exampleBar
         exampleScore.barList[1] = Bar.makeEmpty(2, TimeSignature(6, 4))
@@ -592,5 +625,39 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
             putExtra("score", currentScoreEditingLayout.score)
         }
         startActivityForResult(intent, SELECT_BAR)
+    }
+
+    fun deleteBar(){
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't edit score bars because scoreEditingLayout is null!")
+        if (currentScoreEditingLayout.bars.size <= 1){
+            throw IllegalStateException("Deletion should be disabled if only one bar remains.")
+        }
+
+        if (currentScoreEditingLayout.barIdx == 0){
+            // go to next bar and delete
+            for (i in (currentScoreEditingLayout.barIdx + 1) until currentScoreEditingLayout.bars.size){
+                currentScoreEditingLayout.bars[i].barNr--
+            }
+            nextBar(View(this))
+            currentScoreEditingLayout.bars.removeAt(0)
+        }
+        else {
+            for (i in (currentScoreEditingLayout.barIdx) until currentScoreEditingLayout.bars.size){
+                currentScoreEditingLayout.bars[i].barNr--
+            }
+            previousBar(View(this))
+            currentScoreEditingLayout.bars.removeAt(currentScoreEditingLayout.barIdx + 1)
+        }
+    }
+
+    fun insertBar(){
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't edit score bars because scoreEditingLayout is null!")
+        for (i in (currentScoreEditingLayout.barIdx + 1) until currentScoreEditingLayout.bars.size){
+            currentScoreEditingLayout.bars[i].barNr++
+        }
+        currentScoreEditingLayout.bars.add(currentScoreEditingLayout.barIdx + 1, Bar.makeEmpty(currentScoreEditingLayout.bar.barNr + 1, currentScoreEditingLayout.bar.timeSignature))
+        nextBar(View(this))
     }
 }
