@@ -10,8 +10,8 @@
 
     <Button
         android:id="@+id/voiceNumButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="75dp"
+        android:layout_height="60dp"
         android:onClick="handleVoiceChange"
         android:text="1"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -19,8 +19,8 @@
 
     <ImageButton
         android:id="@+id/nextButton"
-        android:layout_width="94dp"
-        android:layout_height="65dp"
+        android:layout_width="75dp"
+        android:layout_height="60dp"
         android:onClick="nextBar"
         android:scaleType="fitCenter"
         android:scaleX="-1"
@@ -30,19 +30,18 @@
 
     <ImageButton
         android:id="@+id/prevButton"
-        android:layout_width="94dp"
-        android:layout_height="65dp"
-        android:layout_marginEnd="92dp"
+        android:layout_width="75dp"
+        android:layout_height="60dp"
         android:onClick="previousBar"
         android:scaleType="fitCenter"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/nextButton"
         app:srcCompat="?attr/actionModeCloseDrawable" />
 
     <Button
         android:id="@+id/editModeButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="75dp"
+        android:layout_height="60dp"
         android:onClick="toggleEditingMode"
         android:text="add"
         app:layout_constraintBottom_toBottomOf="parent"

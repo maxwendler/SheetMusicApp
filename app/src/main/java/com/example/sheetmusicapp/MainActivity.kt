@@ -210,7 +210,7 @@ class MainActivity : AppCompatActivity(),
         actionBar?.hide()
         initParser()
 
-
+        /*
         val exampleScore = Score.makeEmpty(bars = 100, timeSignature =  TimeSignature(4, 4))
         val exampleBar = Bar.makeEmpty(1, TimeSignature(4, 4))
         exampleScore.barList[0] = exampleBar
@@ -233,15 +233,17 @@ class MainActivity : AppCompatActivity(),
         exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 3, 0)
         exampleBar.addRest(2, RhythmicLength(BasicRhythmicLength.QUARTER), 1)
         exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 3, 2)
-
         // exampleBar.addRest(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), 0)
+        */
+
+        val newScore = Score.makeEmpty(1, TimeSignature(4, 4))
 
         setContentView(R.layout.activity_main)
 
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
         mainConstraintLayout.doOnLayout {
-            scoreEditingLayout = addScoreEditingLayout(exampleScore)
-            timeSignatureLayout = addTimeSignatureLayout(exampleScore.barList[0].timeSignature)
+            scoreEditingLayout = addScoreEditingLayout(newScore)
+            timeSignatureLayout = addTimeSignatureLayout(newScore.barList[0].timeSignature)
             addNoteInputSelectionLayout()
             getStatusBarHeight()
             initMenu()
