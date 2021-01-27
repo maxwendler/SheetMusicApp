@@ -260,6 +260,14 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
         if (bar.barNr != barNr){
             throw IllegalStateException("Bar at idx derived from barNr does not have this bar number!")
         }
+        if (barIdx == 0){
+            prevBarButton.isClickable = false
+            previousButtonDisabled = true
+        }
+        else {
+            prevBarButton.isClickable = true
+            previousButtonDisabled = false
+        }
         updateOverlays(bar, editingMode)
     }
 }
