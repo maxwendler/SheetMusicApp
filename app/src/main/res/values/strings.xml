@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">SheetMusicApp</string>
+    <string name="app_name">Drum Score Editor</string>
     <string name="numerator_hint">numerator</string>
     <string name="denominator_hint">2, 4 or 8</string>
 </resources>
