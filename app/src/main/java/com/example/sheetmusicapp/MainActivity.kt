@@ -19,7 +19,6 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.view.doOnLayout
 import androidx.core.view.setPadding
-import androidx.core.view.size
 import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
@@ -33,7 +32,11 @@ const val SELECT_BAR = 3
 
 const val dotToCrossedDotRatio = 0.619
 
-class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatureListener, LengthSelectionDialogFragment.NewLengthListener, BarEditingOverlayLayout.GridActionUpListener {
+class MainActivity : AppCompatActivity(),
+        TimeSignatureDialogFragment.NewSignatureListener,
+        LengthSelectionDialogFragment.NewLengthListener,
+        BarEditingOverlayLayout.GridActionUpListener,
+        SetTitleDialogFragment.SetTitleListener{
     var parser = GsonBuilder()
     var scoreEditingLayout : ScoreEditingLayout? = null
     var timeSignatureLayout: TimeSignatureLayout? = null
@@ -148,12 +151,7 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         }
 
         saveFileButton.setOnClickListener {
-            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "application/json"
-                putExtra(Intent.EXTRA_TITLE, "sheet.json")
-            }
-            startActivityForResult(intent, CREATE_FILE)
+            showSetTitleDialog()
         }
         overviewButton.setOnClickListener {
             openOverview()
@@ -659,5 +657,25 @@ class MainActivity : AppCompatActivity(), TimeSignatureDialogFragment.NewSignatu
         }
         currentScoreEditingLayout.bars.add(currentScoreEditingLayout.barIdx + 1, Bar.makeEmpty(currentScoreEditingLayout.bar.barNr + 1, currentScoreEditingLayout.bar.timeSignature))
         nextBar(View(this))
+    }
+
+    fun showSetTitleDialog() {
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't get title of score when scoreEditingLayout is null!")
+        val dialog = SetTitleDialogFragment(currentScoreEditingLayout.score.title)
+        dialog.show(supportFragmentManager, "SetTitleDialog")
+    }
+
+    override fun saveWithTitle(title: String) {
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+        currentScoreEditingLayout.score.title = title
+
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, "$title.json")
+        }
+        startActivityForResult(intent, CREATE_FILE)
     }
 }
