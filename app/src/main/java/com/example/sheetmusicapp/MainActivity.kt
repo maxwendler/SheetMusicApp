@@ -30,8 +30,6 @@ const val CREATE_FILE = 1
 const val PICK_FILE = 2
 const val SELECT_BAR = 3
 
-const val dotToCrossedDotRatio = 0.619
-
 class MainActivity : AppCompatActivity(),
         TimeSignatureDialogFragment.NewSignatureListener,
         LengthSelectionDialogFragment.NewLengthListener,
