@@ -107,10 +107,6 @@ class MainActivity : AppCompatActivity(),
                 ?: throw IllegalStateException("Can't update bar vis if scoreEditingLayout is null!")
             currentScoreEditingLayout.goToBar(barNr, editingMode)
             setMenuButtonsVisibility(false)
-
-            val previousBarButton = findViewById<ImageButton>(R.id.prevButton)
-            previousBarButton.isClickable = barNr > 1
-            currentScoreEditingLayout.previousButtonDisabled = false
             updateTimeSignatureLayout(currentScoreEditingLayout.bar.timeSignature)
         }
     }
