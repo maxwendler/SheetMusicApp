@@ -232,7 +232,15 @@ class MainActivity : AppCompatActivity(),
         // exampleBar.addRest(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), 0)
         */
 
-        val newScore = Score.makeEmpty(1, TimeSignature(4, 4))
+        val newScore : Score =
+                if (savedInstanceState != null){
+                    val scoreSerializable = savedInstanceState.getSerializable("score")
+                    if (scoreSerializable != null){
+                        scoreSerializable as Score
+                    }
+                    else Score.makeEmpty(1, TimeSignature(4, 4))
+                }
+                else Score.makeEmpty(1, TimeSignature(4, 4))
 
         setContentView(R.layout.activity_main)
 
@@ -244,6 +252,14 @@ class MainActivity : AppCompatActivity(),
             getStatusBarHeight()
             initMenu()
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.run {
+            putSerializable("score", scoreEditingLayout?.score)
+        }
+
+        super.onSaveInstanceState(outState)
     }
 
     /**
