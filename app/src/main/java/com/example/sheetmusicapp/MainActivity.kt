@@ -134,6 +134,15 @@ class MainActivity : AppCompatActivity(),
                 val json = parser.setPrettyPrinting().create().toJson(score)
                 val file = contentResolver.openOutputStream(uri)
                 file?.write(json.toByteArray())
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Save file to cloud")
+                    .setMessage("Do you want to upload file to the cloud?")
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setPositiveButton("YES",
+                        DialogInterface.OnClickListener { dialog, id ->
+                            saveToCloud()
+                        })
+                    .setNegativeButton("NO", null).show()
             }
         }
         if (requestCode == PICK_FILE && resultCode == Activity.RESULT_OK) {
@@ -144,15 +153,6 @@ class MainActivity : AppCompatActivity(),
                 val json = jsonRaw?.let { String(it) }
                 if (json != null) {
                     loadFile(json)
-//                    AlertDialog.Builder(this@MainActivity)
-//                        .setTitle("Save file to cloud")
-//                        .setMessage("Do you want to keep the file updated to the cloud?")
-//                        .setIcon(android.R.drawable.ic_dialog_alert)
-//                        .setPositiveButton("YES",
-//                            DialogInterface.OnClickListener { dialog, id ->
-//                                Toast.makeText(this@MainActivity, "Enable auto upload", Toast.LENGTH_LONG).show()
-//                            })
-//                        .setNegativeButton("NO", null).show()
                     loadFromCloud()
                 }
             }
