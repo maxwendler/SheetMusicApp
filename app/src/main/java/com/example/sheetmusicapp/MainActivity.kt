@@ -1,6 +1,8 @@
 package com.example.sheetmusicapp
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Rect
@@ -23,8 +25,15 @@ import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
 import com.example.sheetmusicapp.ui.*
-import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ktx.database
+import com.google.firebase.database.ktx.getValue
+import com.google.firebase.ktx.Firebase
 import com.google.gson.GsonBuilder
+
 
 const val CREATE_FILE = 1
 const val PICK_FILE = 2
@@ -49,6 +58,7 @@ class MainActivity : AppCompatActivity(),
     var statusBarHeight : Int = 0
     var menuIsVisible = false
     var deleteBarButtonDefaultTextColors : ColorStateList? = null
+    var cloudFile: DatabaseReference? = null
 
     lateinit var toggleOpenedButton: ImageButton
     lateinit var toggleNoteHeadButton: ImageButton
@@ -60,62 +70,14 @@ class MainActivity : AppCompatActivity(),
         parser.registerTypeAdapter(Score::class.java, ScoreDeserializer())
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == CREATE_FILE && resultCode == Activity.RESULT_OK) {
-            data?.data?.also { uri ->
-                // Perform operations on the document using its URI.
-                println(uri)
-                val exampleScore = Score.makeEmpty(bars = 32, timeSignature =  TimeSignature(4, 4))
-                val json = parser.setPrettyPrinting().create().toJson(exampleScore)
-                val file = contentResolver.openOutputStream(uri)
-                file?.write(json.toByteArray())
-            }
-        }
-        if (requestCode == PICK_FILE && resultCode == Activity.RESULT_OK) {
-            data?.data?.also { uri ->
-                println(uri)
-                // Perform operations on the document using its URI.
-                val file = contentResolver.openInputStream(uri)
-                val jsonRaw = file?.readBytes()
-                var json = jsonRaw?.let { String(it) }
-                val test = parser.create().fromJson(json, Score::class.java)
-                if (test == null) {
-                    Snackbar.make(
-                            findViewById(R.id.main),
-                            "Wrong file format",
-                            Snackbar.LENGTH_SHORT
-                    ).show()
-                }
-//                println(test)
-//                val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
-//                mainConstraintLayout.doOnLayout {
-//                    scaleBarLineStrokeWidth()
-//                    visualizeBar(test.barList[0])
-//                }
-            }
-        }
-        if (requestCode == SELECT_BAR && resultCode == Activity.RESULT_OK){
-            if (data == null){
-                throw IllegalArgumentException("No bar number data was provided!")
-            }
-            val barNr : Int = data.getIntExtra("barNr", 0)
-            if (barNr == 0){
-                throw IllegalStateException("No bar number was provided as data intent extra.")
-            }
-            val currentScoreEditingLayout = scoreEditingLayout
-                ?: throw IllegalStateException("Can't update bar vis if scoreEditingLayout is null!")
-            currentScoreEditingLayout.goToBar(barNr, editingMode)
-            setMenuButtonsVisibility(false)
-            updateTimeSignatureLayout(currentScoreEditingLayout.bar.timeSignature)
-        }
-    }
-
     @RequiresApi(Build.VERSION_CODES.O)
     private fun initMenu() {
         val menuWidth = (mainWidth * 0.15).toInt()
         val menuLayout = layoutInflater.inflate(R.layout.button_menu, null)
-        menuLayout.layoutParams = ViewGroup.LayoutParams(menuWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
+        menuLayout.layoutParams = ViewGroup.LayoutParams(
+            menuWidth,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
 
         val mainLayout = findViewById<ConstraintLayout>(R.id.main)
         mainLayout.addView(menuLayout)
@@ -159,7 +121,60 @@ class MainActivity : AppCompatActivity(),
 
     }
 
-    fun setMenuButtonsVisibility(shouldBeVisible : Boolean){
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == CREATE_FILE && resultCode == Activity.RESULT_OK) {
+            data?.data?.also { uri ->
+                // Perform operations on the document using its URI.
+                val currentScoreEditingLayout = scoreEditingLayout
+                        ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+                val score = currentScoreEditingLayout.score;
+                val json = parser.setPrettyPrinting().create().toJson(score)
+                val file = contentResolver.openOutputStream(uri)
+                file?.write(json.toByteArray())
+            }
+        }
+        if (requestCode == PICK_FILE && resultCode == Activity.RESULT_OK) {
+            data?.data?.also { uri ->
+                // Perform operations on the document using its URI.
+                val file = contentResolver.openInputStream(uri)
+                val jsonRaw = file?.readBytes()
+                val json = jsonRaw?.let { String(it) }
+                if (json != null) {
+                    loadFile(json)
+//                    AlertDialog.Builder(this@MainActivity)
+//                        .setTitle("Save file to cloud")
+//                        .setMessage("Do you want to keep the file updated to the cloud?")
+//                        .setIcon(android.R.drawable.ic_dialog_alert)
+//                        .setPositiveButton("YES",
+//                            DialogInterface.OnClickListener { dialog, id ->
+//                                Toast.makeText(this@MainActivity, "Enable auto upload", Toast.LENGTH_LONG).show()
+//                            })
+//                        .setNegativeButton("NO", null).show()
+                    loadFromCloud()
+                }
+            }
+        }
+        if (requestCode == SELECT_BAR && resultCode == Activity.RESULT_OK){
+            if (data == null){
+                throw IllegalArgumentException("No bar number data was provided!")
+            }
+            val barNr : Int = data.getIntExtra("barNr", 0)
+            if (barNr == 0){
+                throw IllegalStateException("No bar number was provided as data intent extra.")
+            }
+            val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't update bar vis if scoreEditingLayout is null!")
+            currentScoreEditingLayout.goToBar(barNr, editingMode)
+            setMenuButtonsVisibility(false)
+            updateTimeSignatureLayout(currentScoreEditingLayout.bar.timeSignature)
+        }
+    }
+
+
+    fun setMenuButtonsVisibility(shouldBeVisible: Boolean){
         val openFileButton: Button = findViewById(R.id.button_file_open)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
         val overviewButton: Button = findViewById(R.id.overviewButton)
@@ -203,34 +218,9 @@ class MainActivity : AppCompatActivity(),
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Firebase.database.setPersistenceEnabled(true)
         actionBar?.hide()
         initParser()
-
-        /*
-        val exampleScore = Score.makeEmpty(bars = 100, timeSignature =  TimeSignature(4, 4))
-        val exampleBar = Bar.makeEmpty(1, TimeSignature(4, 4))
-        exampleScore.barList[0] = exampleBar
-        exampleScore.barList[1] = Bar.makeEmpty(2, TimeSignature(6, 4))
-        exampleScore.barList[2] = Bar.makeEmpty(3, TimeSignature(6, 8))
-
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 0)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 1)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.CROSS, 11, 2)
-        // exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 2)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 3)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 4)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 5)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.CROSS, 11, 6)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED), NoteHeadType.CROSS, 11, 0)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.SIXTEENTH), NoteHeadType.CROSS, 11, 1)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 7, 2)
-        exampleBar.addNote(1, RhythmicLength(BasicRhythmicLength.EIGHTH), NoteHeadType.ELLIPTIC, 7, 5)
-
-        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER), NoteHeadType.ELLIPTIC, 3, 0)
-        exampleBar.addRest(2, RhythmicLength(BasicRhythmicLength.QUARTER), 1)
-        exampleBar.addNote(2, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), NoteHeadType.ELLIPTIC, 3, 2)
-        // exampleBar.addRest(1, RhythmicLength(BasicRhythmicLength.QUARTER, LengthModifier.DOTTED), 0)
-        */
 
         val newScore : Score =
                 if (savedInstanceState != null){
@@ -243,6 +233,35 @@ class MainActivity : AppCompatActivity(),
                 else Score.makeEmpty(1, TimeSignature(4, 4))
 
         setContentView(R.layout.activity_main)
+
+        val database = Firebase.database
+        cloudFile = database.getReference(newScore.title)
+
+        val fileListener = object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                // Get Post object and use the values to update the UI
+                val json = dataSnapshot.getValue<String>()
+
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Load from file")
+                    .setMessage("Do you really want to load cloud version?")
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setPositiveButton("YES",
+                        DialogInterface.OnClickListener { dialog, id ->
+                            Toast.makeText(this@MainActivity, "Load from cloud", Toast.LENGTH_LONG).show()
+                            if (json != null) {
+                                loadFile(json)
+                            }
+                        })
+                    .setNegativeButton("NO", null).show()
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {
+                // Getting Post failed, log a message
+                Toast.makeText(applicationContext, "Load from cloud fail!", Toast.LENGTH_LONG).show()
+            }
+        }
+        cloudFile!!.addListenerForSingleValueEvent(fileListener)
 
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
         mainConstraintLayout.doOnLayout {
@@ -273,7 +292,7 @@ class MainActivity : AppCompatActivity(),
 
         val mainLayout = findViewById<ConstraintLayout>(R.id.main)
         if (mainLayout.height == 0 || mainLayout.width == 0){
-            throw IllegalStateException("'main' layout has not been laid out yet!" )
+            throw IllegalStateException("'main' layout has not been laid out yet!")
         }
 
         mainWidth = mainLayout.width
@@ -283,16 +302,36 @@ class MainActivity : AppCompatActivity(),
         val width = (mainLayout.width * 0.7).toInt()
         val barHeight = mainLayout.height * 0.25
 
-        val editableBarLayout = ScoreEditingLayout(this, findViewById(R.id.prevButton), barHeight.toInt(), score)
+        val editableBarLayout = ScoreEditingLayout(
+            this,
+            findViewById(R.id.prevButton),
+            barHeight.toInt(),
+            score
+        )
         editableBarLayout.id = ViewGroup.generateViewId()
         editableBarLayout.tag = "editableBarLayout"
-        editableBarLayout.layoutParams = ViewGroup.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT)
+        editableBarLayout.layoutParams = ViewGroup.LayoutParams(
+            width,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
         mainLayout.addView(editableBarLayout)
 
         val constraintSet = ConstraintSet()
         constraintSet.clone(mainLayout)
-        constraintSet.connect(editableBarLayout.id, ConstraintSet.LEFT, R.id.main, ConstraintSet.LEFT, horizontalBarMargin)
-        constraintSet.connect(editableBarLayout.id, ConstraintSet.RIGHT, R.id.main, ConstraintSet.RIGHT, horizontalBarMargin)
+        constraintSet.connect(
+            editableBarLayout.id,
+            ConstraintSet.LEFT,
+            R.id.main,
+            ConstraintSet.LEFT,
+            horizontalBarMargin
+        )
+        constraintSet.connect(
+            editableBarLayout.id,
+            ConstraintSet.RIGHT,
+            R.id.main,
+            ConstraintSet.RIGHT,
+            horizontalBarMargin
+        )
         constraintSet.applyTo(mainLayout)
 
         return editableBarLayout
@@ -301,7 +340,7 @@ class MainActivity : AppCompatActivity(),
     private fun addTimeSignatureLayout(timeSignature: TimeSignature) : TimeSignatureLayout{
         val mainLayout = findViewById<ConstraintLayout>(R.id.main)
         if (mainLayout.height == 0 || mainLayout.width == 0){
-            throw IllegalStateException("'main' layout has not been laid out yet!" )
+            throw IllegalStateException("'main' layout has not been laid out yet!")
         }
         val barHeight = mainLayout.height * 0.25
 
@@ -310,15 +349,34 @@ class MainActivity : AppCompatActivity(),
 
         val timeSignatureLayout = TimeSignatureLayout(this, timeSignature)
         timeSignatureLayout.id = ViewGroup.generateViewId()
-        timeSignatureLayout.layoutParams = ViewGroup.LayoutParams((barHeight / 3).toInt(), barHeight.toInt())
+        timeSignatureLayout.layoutParams = ViewGroup.LayoutParams(
+            (barHeight / 3).toInt(),
+            barHeight.toInt()
+        )
         timeSignatureLayout.setOnClickListener { showTimeSignatureDialog(it) }
         mainLayout.addView(timeSignatureLayout)
 
         val constraintSet = ConstraintSet()
         constraintSet.clone(mainLayout)
-        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.RIGHT, currentScoreEditingLayout.id, ConstraintSet.LEFT, 16)
-        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.TOP, mainLayout.id, ConstraintSet.TOP)
-        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.BOTTOM, mainLayout.id, ConstraintSet.BOTTOM)
+        constraintSet.connect(
+            timeSignatureLayout.id,
+            ConstraintSet.RIGHT,
+            currentScoreEditingLayout.id,
+            ConstraintSet.LEFT,
+            16
+        )
+        constraintSet.connect(
+            timeSignatureLayout.id,
+            ConstraintSet.TOP,
+            mainLayout.id,
+            ConstraintSet.TOP
+        )
+        constraintSet.connect(
+            timeSignatureLayout.id,
+            ConstraintSet.BOTTOM,
+            mainLayout.id,
+            ConstraintSet.BOTTOM
+        )
         constraintSet.applyTo(mainLayout)
 
         return timeSignatureLayout
@@ -370,7 +428,10 @@ class MainActivity : AppCompatActivity(),
         val newNumeratorText = dialog.numeratorEditText.text
         val newDenominatorText = dialog.denominatorEditText.text
         if (newNumeratorText.toString() != "" && newDenominatorText.toString() != ""){
-            val newTimeSignature = TimeSignature(newNumeratorText.toString().toInt(), newDenominatorText.toString().toInt())
+            val newTimeSignature = TimeSignature(
+                newNumeratorText.toString().toInt(),
+                newDenominatorText.toString().toInt()
+            )
             currentScoreEditingLayout.changeCurrentBarTimeSignature(newTimeSignature)
             updateTimeSignatureLayout(newTimeSignature)
         }
@@ -379,7 +440,7 @@ class MainActivity : AppCompatActivity(),
     fun addNoteInputSelectionLayout(){
         val mainLayout = findViewById<ConstraintLayout>(R.id.main)
         if (mainLayout.height == 0 || mainLayout.width == 0){
-            throw IllegalStateException("'main' layout has not been laid out yet!" )
+            throw IllegalStateException("'main' layout has not been laid out yet!")
         }
 
         val width = (mainLayout.width * 0.15).toInt()
@@ -409,12 +470,20 @@ class MainActivity : AppCompatActivity(),
             val imageButton = it as ImageButton
             when (inputNoteHeadType){
                 NoteHeadType.ELLIPTIC -> {
-                    if (inputBasicLength in listOf(BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.EIGHTH, BasicRhythmicLength.QUARTER)) {
+                    if (inputBasicLength in listOf(
+                            BasicRhythmicLength.SIXTEENTH,
+                            BasicRhythmicLength.EIGHTH,
+                            BasicRhythmicLength.QUARTER
+                        )
+                    ) {
                         imageButton.setImageResource(R.drawable.ic_x_notehead)
                         inputNoteHeadType = NoteHeadType.CROSS
-                    }
-                    else {
-                        Toast.makeText(this, "Cross note heads are only supported for quarters, 8ths and 16ths!", Toast.LENGTH_LONG).show()
+                    } else {
+                        Toast.makeText(
+                            this,
+                            "Cross note heads are only supported for quarters, 8ths and 16ths!",
+                            Toast.LENGTH_LONG
+                        ).show()
                         imageButton.setImageResource(R.drawable.ic_rest_quarter)
                         inputNoteHeadType = null
                     }
@@ -500,13 +569,15 @@ class MainActivity : AppCompatActivity(),
             if (newLength != inputBasicLength){
                 if (newLength != BasicRhythmicLength.SIXTEENTH || !inputIsDotted) {
                     inputBasicLength = newLength
-                    changeLengthButton.setText(when (newLength) {
-                        BasicRhythmicLength.WHOLE -> "1/1"
-                        BasicRhythmicLength.HALF -> "1/2"
-                        BasicRhythmicLength.QUARTER -> "1/4"
-                        BasicRhythmicLength.EIGHTH -> "1/8"
-                        BasicRhythmicLength.SIXTEENTH -> "1/16"
-                    })
+                    changeLengthButton.setText(
+                        when (newLength) {
+                            BasicRhythmicLength.WHOLE -> "1/1"
+                            BasicRhythmicLength.HALF -> "1/2"
+                            BasicRhythmicLength.QUARTER -> "1/4"
+                            BasicRhythmicLength.EIGHTH -> "1/8"
+                            BasicRhythmicLength.SIXTEENTH -> "1/16"
+                        }
+                    )
                     changeLengthButton.textSize =
                             if (newLength == BasicRhythmicLength.SIXTEENTH) 10f
                             else 14f
@@ -520,27 +591,29 @@ class MainActivity : AppCompatActivity(),
     }
 
     fun setInputSelectionSummaryImage(){
-        toggleOpenedButton.setImageResource(when(inputNoteHeadType){
-            NoteHeadType.ELLIPTIC -> when(inputBasicLength){
-                BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
-                BasicRhythmicLength.HALF -> R.drawable.ic_half
-                BasicRhythmicLength.QUARTER -> R.drawable.ic_quarter
-                BasicRhythmicLength.EIGHTH -> R.drawable.ic_eighth
-                BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_sixteenth
+        toggleOpenedButton.setImageResource(
+            when (inputNoteHeadType) {
+                NoteHeadType.ELLIPTIC -> when (inputBasicLength) {
+                    BasicRhythmicLength.WHOLE -> R.drawable.ic_whole
+                    BasicRhythmicLength.HALF -> R.drawable.ic_half
+                    BasicRhythmicLength.QUARTER -> R.drawable.ic_quarter
+                    BasicRhythmicLength.EIGHTH -> R.drawable.ic_eighth
+                    BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_sixteenth
+                }
+                NoteHeadType.CROSS -> when (inputBasicLength) {
+                    BasicRhythmicLength.QUARTER -> R.drawable.ic_x_quarter
+                    BasicRhythmicLength.EIGHTH -> R.drawable.ic_x_eighth
+                    BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_x_sixteenth
+                    else -> throw IllegalStateException("Cross note heads are only supported for quarters, 8ths and 16ths!")
+                }
+                null -> when (inputBasicLength) {
+                    BasicRhythmicLength.WHOLE, BasicRhythmicLength.HALF -> R.drawable.ic_rest_half
+                    BasicRhythmicLength.QUARTER -> R.drawable.ic_rest_quarter
+                    BasicRhythmicLength.EIGHTH -> R.drawable.ic_rest_eighth
+                    BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_rest_sixteenth
+                }
             }
-            NoteHeadType.CROSS -> when(inputBasicLength){
-                BasicRhythmicLength.QUARTER -> R.drawable.ic_x_quarter
-                BasicRhythmicLength.EIGHTH -> R.drawable.ic_x_eighth
-                BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_x_sixteenth
-                else -> throw IllegalStateException("Cross note heads are only supported for quarters, 8ths and 16ths!")
-            }
-            null -> when(inputBasicLength){
-                BasicRhythmicLength.WHOLE, BasicRhythmicLength.HALF -> R.drawable.ic_rest_half
-                BasicRhythmicLength.QUARTER -> R.drawable.ic_rest_quarter
-                BasicRhythmicLength.EIGHTH -> R.drawable.ic_rest_eighth
-                BasicRhythmicLength.SIXTEENTH -> R.drawable.ic_rest_sixteenth
-            }
-        })
+        )
 
         toggleOpenedButton.scaleY =
                 if (inputBasicLength == BasicRhythmicLength.WHOLE && inputNoteHeadType == null) -1f
@@ -588,15 +661,23 @@ class MainActivity : AppCompatActivity(),
             when (editingMode){
                 EditingMode.ADD -> {
                     val inputLength =
-                            if (inputIsDotted) RhythmicLength(inputBasicLength, LengthModifier.DOTTED)
-                            else RhythmicLength(inputBasicLength)
+                        if (inputIsDotted) RhythmicLength(
+                            inputBasicLength,
+                            LengthModifier.DOTTED
+                        )
+                        else RhythmicLength(inputBasicLength)
                     val currentInputNoteHeadType = inputNoteHeadType
 
-                    if (currentInputNoteHeadType == null){
+                    if (currentInputNoteHeadType == null) {
                         currentScoreEditingLayout.bar.addRest(voiceNum, inputLength, intervalIdx)
-                    }
-                    else {
-                        currentScoreEditingLayout.bar.addNote(voiceNum, inputLength, currentInputNoteHeadType, musicHeight, intervalIdx)
+                    } else {
+                        currentScoreEditingLayout.bar.addNote(
+                            voiceNum,
+                            inputLength,
+                            currentInputNoteHeadType,
+                            musicHeight,
+                            intervalIdx
+                        )
                     }
                 }
 
@@ -615,9 +696,18 @@ class MainActivity : AppCompatActivity(),
                 val currentInputNoteHeadType = inputNoteHeadType
                 if (currentInputNoteHeadType != null){
                     val inputLength =
-                            if (inputIsDotted) RhythmicLength(inputBasicLength, LengthModifier.DOTTED)
+                            if (inputIsDotted) RhythmicLength(
+                                inputBasicLength,
+                                LengthModifier.DOTTED
+                            )
                             else RhythmicLength(inputBasicLength)
-                    currentScoreEditingLayout.bar.addNote(voiceNum, inputLength, currentInputNoteHeadType, musicHeight, 0)
+                    currentScoreEditingLayout.bar.addNote(
+                        voiceNum,
+                        inputLength,
+                        currentInputNoteHeadType,
+                        musicHeight,
+                        0
+                    )
 
                     val currentBarVisLayout = currentScoreEditingLayout.barVisLayout
                             ?: throw IllegalStateException("Can't update bar vis when barVisLayout is null!")
@@ -667,7 +757,12 @@ class MainActivity : AppCompatActivity(),
         for (i in (currentScoreEditingLayout.barIdx + 1) until currentScoreEditingLayout.bars.size){
             currentScoreEditingLayout.bars[i].barNr++
         }
-        currentScoreEditingLayout.bars.add(currentScoreEditingLayout.barIdx + 1, Bar.makeEmpty(currentScoreEditingLayout.bar.barNr + 1, currentScoreEditingLayout.bar.timeSignature))
+        currentScoreEditingLayout.bars.add(
+            currentScoreEditingLayout.barIdx + 1, Bar.makeEmpty(
+                currentScoreEditingLayout.bar.barNr + 1,
+                currentScoreEditingLayout.bar.timeSignature
+            )
+        )
         nextBar(View(this))
     }
 
@@ -683,11 +778,91 @@ class MainActivity : AppCompatActivity(),
                 ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
         currentScoreEditingLayout.score.title = title
 
+        // save to cloud with changed title
+        saveToCloud()
+
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "application/json"
             putExtra(Intent.EXTRA_TITLE, "$title.json")
         }
         startActivityForResult(intent, CREATE_FILE)
+    }
+
+    fun saveToCloud() {
+        val currentScoreEditingLayout = scoreEditingLayout
+                ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+
+        val database = Firebase.database
+        val myRef = database.getReference(currentScoreEditingLayout.score.title)
+        val score = currentScoreEditingLayout.score;
+        val json = parser.setPrettyPrinting().create().toJson(score)
+        myRef.setValue(json).addOnSuccessListener {
+            // Write was successful!
+            // ...
+            println("upload success")
+            Toast.makeText(this, "Upload success", Toast.LENGTH_LONG).show()
+        }
+        .addOnFailureListener {
+            // Write failed
+            // ...
+            println("upload failed")
+            Toast.makeText(this, "Upload failed", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun loadFromCloud() {
+        val currentScoreEditingLayout = scoreEditingLayout
+            ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+        val database = Firebase.database
+        cloudFile = database.getReference(currentScoreEditingLayout.score.title)
+
+        val fileListener = object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+                // Get Post object and use the values to update the UI
+                val json = dataSnapshot.getValue<String>()
+                if (json == null) {
+                    Toast.makeText(this@MainActivity, "Not found in cloud", Toast.LENGTH_LONG).show()
+                    return
+                }
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Load from file")
+                    .setMessage("Do you really want to load cloud version?")
+                    .setIcon(android.R.drawable.ic_dialog_alert)
+                    .setPositiveButton("YES",
+                        DialogInterface.OnClickListener { dialog, id ->
+                            loadFile(json)
+                        })
+                    .setNegativeButton("NO", null).show()
+            }
+
+            override fun onCancelled(databaseError: DatabaseError) {
+                // Getting Post failed, log a message
+                Toast.makeText(applicationContext, "Load from cloud fail!", Toast.LENGTH_LONG).show()
+            }
+        }
+        cloudFile!!.addListenerForSingleValueEvent(fileListener)
+    }
+
+    fun loadFile(json: String) {
+        val test = parser.create().fromJson(json, Score::class.java)
+        if (test == null) {
+            Toast.makeText(this, "Format not correct!", Toast.LENGTH_LONG).show()
+        }
+
+        val currentScoreEditingLayout = scoreEditingLayout
+            ?: throw IllegalStateException("Can't update bar vis if scoreEditingLayout is null!")
+        currentScoreEditingLayout.removeAllViews()
+
+        val currentTimeSignatureLayout = timeSignatureLayout
+            ?: throw IllegalStateException("Can't change score title if timeSignatureLayout is null!")
+        currentTimeSignatureLayout.removeAllViews()
+
+        val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
+        mainConstraintLayout.doOnLayout {
+            scoreEditingLayout = addScoreEditingLayout(test)
+            timeSignatureLayout = addTimeSignatureLayout(test.barList[0].timeSignature)
+            getStatusBarHeight()
+        }
     }
 }

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "535843592889",
+    "project_id": "pfjhyyj",
+    "storage_bucket": "pfjhyyj.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:535843592889:android:d773d2d5ed373dd5839968",
+        "android_client_info": {
+          "package_name": "com.example.sheetmusicapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "535843592889-no7k0t41hkkr8ajbbn6hi0oor1ei3rki.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuURrDb2gPntz8N86-XUvueEJf9OaORRw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "535843592889-no7k0t41hkkr8ajbbn6hi0oor1ei3rki.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
