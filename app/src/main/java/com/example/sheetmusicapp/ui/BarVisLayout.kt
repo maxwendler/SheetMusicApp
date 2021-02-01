@@ -225,7 +225,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
             val horizontalMargins = mutableListOf<Int>()
 
             var connectedIntervalCount = 0
-            var intervalConnectionToBottomMargin = 0
+            var connectionGroupExtremumHeight = 0
             var intervalConnectionGroup : MutableList<RhythmicInterval>? = null
 
             for (interval in voice.intervals){
@@ -261,8 +261,33 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                                 throw IllegalStateException("A group of connected intervals must be of size 2 or larger!")
                             }
 
-                            intervalConnectionToBottomMargin = calculateIntervalConnectionToBottomMargin(intervalConnectionGroup, subGroupDirection)
-                            visualizeConnectedInterval(interval, subGroupDirection, horizontalMarginInt, intervalWidth, intervalConnectionToBottomMargin, false, calculateIntervalDoubleConnectionType(interval, intervalConnectionGroup))
+                            // Calculate highest / lowest musical height in group of connected intervals.
+                            connectionGroupExtremumHeight = when (subGroupDirection){
+                                StemDirection.UP -> -1
+                                StemDirection.DOWN -> 13
+                            }
+                            for (connectedInterval in intervalConnectionGroup){
+                                if (!connectedInterval.isRest) {
+                                    when (subGroupDirection) {
+                                        StemDirection.UP -> {
+                                            val maxIntervalHeight : Int = connectedInterval.getNoteHeadsCopy().keys.maxOrNull()
+                                                ?: throw IllegalStateException("The interval can't be empty!")
+                                            if (maxIntervalHeight > connectionGroupExtremumHeight){
+                                                connectionGroupExtremumHeight = maxIntervalHeight
+                                            }
+                                        }
+                                        StemDirection.DOWN -> {
+                                            val minIntervalHeight : Int = connectedInterval.getNoteHeadsCopy().keys.minOrNull()
+                                                ?: throw IllegalStateException("The interval can't be empty!")
+                                            if (minIntervalHeight < connectionGroupExtremumHeight){
+                                                connectionGroupExtremumHeight = minIntervalHeight
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            visualizeConnectedInterval(interval, subGroupDirection, horizontalMarginInt, intervalWidth, connectionGroupExtremumHeight, false, calculateIntervalDoubleConnectionType(interval, intervalConnectionGroup))
                             connectedIntervalCount = intervalConnectionGroup.size - 1
                         }
                         else {
@@ -278,7 +303,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                     if (intervalConnectionGroup == null){
                         throw IllegalStateException("IntervalConnectionGroup is null even though not all intervals of the group were visualized, according to connectedIntervalCount.")
                     }
-                    visualizeConnectedInterval(interval, subGroupDirection, horizontalMarginInt, intervalWidth, intervalConnectionToBottomMargin, isLast, calculateIntervalDoubleConnectionType(interval, intervalConnectionGroup))
+                    visualizeConnectedInterval(interval, subGroupDirection, horizontalMarginInt, intervalWidth, connectionGroupExtremumHeight, isLast, calculateIntervalDoubleConnectionType(interval, intervalConnectionGroup))
                     connectedIntervalCount--
                 }
 
@@ -380,12 +405,12 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                     minMusicHeight = localMinMusicHeight
                 }
             }
-            return (smallestMusicHeightToBottomMargin + (minMusicHeight + 1) * verticalMusicHeightStep -
+            return (smallestMusicHeightToBottomMargin + (minMusicHeight + 2) * verticalMusicHeightStep -
                     noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2)).toInt()
         }
     }
 
-    private fun visualizeConnectedInterval(interval: RhythmicInterval, subGroupDirection: StemDirection, horizontalMargin: Int, intervalWidth: Double, intervalConnectionToBottomMargin: Int, isLast: Boolean, intervalDoubleConnectionType: IntervalDoubleConnectionType){
+    private fun visualizeConnectedInterval(interval: RhythmicInterval, subGroupDirection: StemDirection, horizontalMargin: Int, intervalWidth: Double, connectionGroupExtremumHeight: Int, isLast: Boolean, intervalDoubleConnectionType: IntervalDoubleConnectionType){
 
         // Sort musical note heights of interval, so first will be the one displayed as note with proper stem.
         val noteHeads = interval.getNoteHeadsCopy()
@@ -465,7 +490,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         var commonStemView : ImageView? = null
         // Add common stem for all interval notes.
         if (lastNoteHeadView != null && firstNoteHeadType != null){
-            commonStemView = addMultiNoteStemForConnection(subGroupDirection, lastNoteHeadView, sortedMusicalNoteHeights.last(), intervalConnectionToBottomMargin, isMirrored)
+            commonStemView = addMultiNoteStemForConnection(subGroupDirection, lastNoteHeadView, sortedMusicalNoteHeights.last(), connectionGroupExtremumHeight, isMirrored)
         }
 
         // Add connection to next interval.
@@ -1070,41 +1095,23 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         constraintSet.applyTo(this)
     }
 
-    private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: NoteView, startMusicHeight: Int, intervalConnectionToBottomMargin: Int, isMirrored: Boolean) : ImageView{
+    private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: NoteView, startMusicHeight: Int, connectionGroupExtremumHeight: Int, isMirrored: Boolean) : ImageView{
         val multiNoteStemView = ImageView(context)
         multiNoteStemView.id = View.generateViewId()
         multiNoteStemView.scaleType = ImageView.ScaleType.FIT_XY
 
-        // calculate stem height
-        val noteHeadBottomHeight = (smallestMusicHeightToBottomMargin + startMusicHeight * verticalMusicHeightStep).toInt()
-        val stemStartHeight = noteHeadBottomHeight + when (stemDirection) {
+        val heightDifferenceToExtremum = verticalMusicHeightStep * when (stemDirection){
             StemDirection.UP -> {
-                when (startNoteHeadView.headType){
-                    NoteHeadType.CROSS -> {
-                        verticalMusicHeightStep * 2
-                    }
-                    NoteHeadType.ELLIPTIC -> {
-                        ellipticStemToBottomHeight.toDouble()
-                    }
-                }
+                connectionGroupExtremumHeight - startMusicHeight
             }
             StemDirection.DOWN -> {
-                if (startNoteHeadView.headType == NoteHeadType.ELLIPTIC){
-                    verticalMusicHeightStep * 2 - ellipticStemToBottomHeight
-                }
-                else {
-                    0.0
-                }
+                startMusicHeight - connectionGroupExtremumHeight
             }
         }
-
-        var newMultiStemHeight =
-                if (stemDirection == StemDirection.UP) intervalConnectionToBottomMargin - stemStartHeight.toInt()
-                else stemStartHeight.toInt() - intervalConnectionToBottomMargin
-
         val headTypeStemStartHeight = if (startNoteHeadView.headType == NoteHeadType.ELLIPTIC) ellipticStemToBottomHeight else (verticalMusicHeightStep * 2).toInt()
+        var multiStemHeight = noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2) + heightDifferenceToExtremum - headTypeStemStartHeight
 
-        multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight)
+        multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, multiStemHeight.toInt())
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)
 
         this.addBarDetailView(multiNoteStemView)
