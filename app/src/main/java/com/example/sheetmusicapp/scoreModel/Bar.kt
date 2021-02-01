@@ -34,6 +34,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
             }
             voices[pair.key] = Voice(pair.value, timeSignature)
         }
+        calculateVoiceStemDirections()
     }
 
     /**
@@ -143,9 +144,9 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
             val intervalAtIdx = voice.intervals[intervalIdx]
             if (length.lengthInUnits != intervalAtIdx.getLengthCopy().lengthInUnits){
                 changeIntervalLength(voice.intervals, length, intervalIdx)
-                voice.recalculateSubGroupsFrom(intervalIdx)
             }
             voice.intervals[intervalIdx].makeRest()
+            voice.recalculateSubGroupsFrom(intervalIdx)
 
             if (voice.isVoiceOfRests() && voices.size > 1){
                 voices.remove(voiceNum)
@@ -214,6 +215,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
             if (voice.isVoiceOfRests() && voices.size > 1){
                 voices.remove(voiceNum)
             }
+            else voice.recalculateSubGroupsFrom(intervalIdx)
             calculateVoiceStemDirections()
         }
     }

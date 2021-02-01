@@ -150,7 +150,7 @@ class MainActivity : AppCompatActivity(),
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == CREATE_FILE && resultCode == Activity.RESULT_OK) {
+        if (requestCode == CREATE_FILE && resultCode == RESULT_OK) {
             data?.data?.also { uri ->
                 // Perform operations on the document using its URI.
                 val currentScoreEditingLayout = scoreEditingLayout
@@ -170,7 +170,7 @@ class MainActivity : AppCompatActivity(),
                     .setNegativeButton("NO", null).show()
             }
         }
-        if (requestCode == PICK_FILE && resultCode == Activity.RESULT_OK) {
+        if (requestCode == PICK_FILE && resultCode == RESULT_OK) {
             data?.data?.also { uri ->
                 // Perform operations on the document using its URI.
                 val file = contentResolver.openInputStream(uri)
@@ -182,7 +182,7 @@ class MainActivity : AppCompatActivity(),
                 }
             }
         }
-        if (requestCode == SELECT_BAR && resultCode == Activity.RESULT_OK){
+        if (requestCode == SELECT_BAR && resultCode == RESULT_OK){
             if (data == null){
                 throw IllegalArgumentException("No bar number data was provided!")
             }
@@ -199,7 +199,7 @@ class MainActivity : AppCompatActivity(),
         if (requestCode == RC_SIGN_IN) {
             val response = IdpResponse.fromResultIntent(data)
 
-            if (resultCode == Activity.RESULT_OK) {
+            if (resultCode == RESULT_OK) {
                 // Successfully signed in
                 val user = FirebaseAuth.getInstance().currentUser
                 println(user)
@@ -211,7 +211,7 @@ class MainActivity : AppCompatActivity(),
                 // ...
             }
         }
-        if (requestCode == OPEN_CLOUD_LIST && resultCode == Activity.RESULT_OK){
+        if (requestCode == OPEN_CLOUD_LIST && resultCode == RESULT_OK){
             if (data == null){
                 throw IllegalArgumentException("No title data was provided!")
             }
@@ -935,7 +935,7 @@ class MainActivity : AppCompatActivity(),
     }
 
     fun initNetwork() {
-        val cm:ConnectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val cm:ConnectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
         val builder: NetworkRequest.Builder = NetworkRequest.Builder()
 
         cm.registerNetworkCallback(
