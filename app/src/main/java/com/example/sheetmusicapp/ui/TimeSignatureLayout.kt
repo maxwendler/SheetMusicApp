@@ -2,6 +2,7 @@ package com.example.sheetmusicapp.ui
 
 import android.content.Context
 import android.graphics.Paint
+import android.util.TypedValue
 import android.view.Gravity
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -54,7 +55,7 @@ class TimeSignatureLayout (context: Context, initTimeSignature: TimeSignature) :
         numberView.text = number.toString()
         numberView.gravity = Gravity.CENTER
         numberView.setTextColor(resources.getColor(R.color.black))
-        TextViewCompat.setAutoSizeTextTypeWithDefaults(numberView, TextViewCompat.AUTO_SIZE_TEXT_TYPE_UNIFORM)
+        TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(numberView, 1, 200, 1, TypedValue.COMPLEX_UNIT_PX)
         addView(numberView)
         return numberView
     }

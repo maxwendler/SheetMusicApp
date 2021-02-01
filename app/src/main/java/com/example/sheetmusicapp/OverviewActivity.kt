@@ -29,8 +29,8 @@ class OverviewActivity : AppCompatActivity() {
     lateinit var score : Score
     lateinit var overviewLayout : LinearLayout
     lateinit var titleView : TextView
-    var currentTimeSignature : TimeSignature? = null
     var pageCount : Int = 0
+    var currentTimeSignature : TimeSignature? = null
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -151,24 +151,34 @@ class OverviewActivity : AppCompatActivity() {
             constraintSet.connect(barVisLayout.id, ConstraintSet.TOP, pageLayout.id, ConstraintSet.TOP, (lineIdx * barLineHeight).toInt())
             constraintSet.applyTo(pageLayout)
 
-            if (currentTimeSignature != bar.timeSignature){
-                val timeSignatureLayout = TimeSignatureLayout(this, bar.timeSignature)
-                timeSignatureLayout.id = ViewGroup.generateViewId()
-                timeSignatureLayout.layoutParams = ViewGroup.LayoutParams(barHeight / 3, barHeight)
-                timeSignatureLayout.makeTextBold = true
-                pageLayout.addView(timeSignatureLayout)
+            val currentCurrentTimeSignature = currentTimeSignature
 
-                constraintSet.clone(pageLayout)
-                constraintSet.connect(timeSignatureLayout.id, ConstraintSet.LEFT, barVisLayout.id, ConstraintSet.LEFT, 5)
-                constraintSet.connect(timeSignatureLayout.id, ConstraintSet.TOP, barVisLayout.id, ConstraintSet.TOP)
-                constraintSet.connect(timeSignatureLayout.id, ConstraintSet.BOTTOM, barVisLayout.id, ConstraintSet.BOTTOM, barHeight / 8)
-                constraintSet.applyTo(pageLayout)
-
+            if (currentCurrentTimeSignature == null){
+                addTimeSignatureLayout(pageLayout, barVisLayout, barHeight, bar.timeSignature)
+                currentTimeSignature = bar.timeSignature
+            }
+            else if (!currentCurrentTimeSignature.equals(bar.timeSignature)){
+                addTimeSignatureLayout(pageLayout, barVisLayout, barHeight, bar.timeSignature)
                 currentTimeSignature = bar.timeSignature
             }
 
             leftMargin += barWidth - 1
         }
 
+    }
+
+    fun addTimeSignatureLayout(pageLayout: ConstraintLayout, barVisLayout: BarVisLayout, barHeight: Int, timeSignature: TimeSignature){
+        val timeSignatureLayout = TimeSignatureLayout(this, timeSignature)
+        timeSignatureLayout.id = ViewGroup.generateViewId()
+        timeSignatureLayout.layoutParams = ViewGroup.LayoutParams(barHeight / 3, barHeight)
+        timeSignatureLayout.makeTextBold = true
+        pageLayout.addView(timeSignatureLayout)
+
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(pageLayout)
+        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.LEFT, barVisLayout.id, ConstraintSet.LEFT, 5)
+        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.TOP, barVisLayout.id, ConstraintSet.TOP)
+        constraintSet.connect(timeSignatureLayout.id, ConstraintSet.BOTTOM, barVisLayout.id, ConstraintSet.BOTTOM, barHeight / 8)
+        constraintSet.applyTo(pageLayout)
     }
 }
