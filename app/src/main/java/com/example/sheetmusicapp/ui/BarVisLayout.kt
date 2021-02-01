@@ -1,10 +1,8 @@
 package com.example.sheetmusicapp.ui
 
 import android.content.Context
-import android.media.Image
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.WebSettings
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -32,8 +30,8 @@ const val noteHeadWidthToHeightRatio = noteHeadWidthToNoteHeightRatio * noteHeig
 
 const val noteStemWidthToNoteHeightRatio = 0.0362
 const val noteStemWidthToNoteHeadHeightRatio = noteHeightToNoteHeadHeightRatio * noteStemWidthToNoteHeightRatio
-const val noteStemStartFromUpNoteBottomToNoteHeightRatio = 0.1816
-const val noteStemStartFromUpNoteBottomToNoteHeadHeightRatio = noteStemStartFromUpNoteBottomToNoteHeightRatio * noteHeightToNoteHeadHeightRatio
+const val ellipticStemStartFromUpNoteBottomToNoteHeightRatio = 0.1816
+const val ellipticStemStartFromUpNoteBottomToNoteHeadHeightRatio = ellipticStemStartFromUpNoteBottomToNoteHeightRatio * noteHeightToNoteHeadHeightRatio
 
 const val dotDiameterToNoteHeadWidthRatio = 0.2803
 const val dotDiameterToNoteHeadHeightRatio = dotDiameterToNoteHeadWidthRatio * noteHeadWidthToHeightRatio
@@ -76,7 +74,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
     private var noteHeadWidthForNonWholes : Int = 0
     // note stem views
     private var noteStemWidth : Int = 0
-    private var noteStemStartHeight : Int = 0
+    private var ellipticStemToBottomHeight : Int = 0
     // note dot views
     private var dotDiameter : Int = 0
     private var dotToNoteDistance : Int = 0
@@ -139,7 +137,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         // calculate params from measures ratios
         noteStemWidth = (noteHeadHeightFloat * noteStemWidthToNoteHeadHeightRatio).toInt()
         noteHeadWidthForNonWholes = (noteHeadHeightFloat * noteHeadWidthToHeightRatio).toInt()
-        noteStemStartHeight = (noteHeadHeightFloat * noteStemStartFromUpNoteBottomToNoteHeadHeightRatio).toInt()
+        ellipticStemToBottomHeight = (noteHeadHeightFloat * ellipticStemStartFromUpNoteBottomToNoteHeadHeightRatio).toInt()
         dotDiameter = (noteHeadHeightFloat * dotDiameterToNoteHeadHeightRatio).toInt()
         dotToNoteDistance = (noteHeadHeightFloat * dotNoteDistanceToNoteHeadHeightRatio).toInt()
         dotMarginToUpNoteBottom = (noteHeadHeight / 2.0 - 0.25 * dotDiameter).toInt()
@@ -1029,13 +1027,13 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         var newMultiStemHeight = ((maxMusicalHeight - minMusicalHeight) * verticalMusicHeightStep).toInt()
         val startNoteHeadType = startNoteHeadView.headType
         if (startNoteHeadType != endViewType){
-            val stemHeightModifier = noteHeadHeight - noteStemStartHeight
+            val stemHeightModifier = noteHeadHeight - ellipticStemToBottomHeight
             when (startNoteHeadType){
                 NoteHeadType.CROSS -> newMultiStemHeight -= stemHeightModifier
                 NoteHeadType.ELLIPTIC -> newMultiStemHeight += stemHeightModifier
             }
         }
-        val headTypeStemStartHeight = if (startNoteHeadType == NoteHeadType.ELLIPTIC) noteStemStartHeight else noteHeadHeight
+        val headTypeStemStartHeight = if (startNoteHeadType == NoteHeadType.ELLIPTIC) ellipticStemToBottomHeight else noteHeadHeight
 
         multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight)
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)
@@ -1077,17 +1075,36 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         multiNoteStemView.id = View.generateViewId()
         multiNoteStemView.scaleType = ImageView.ScaleType.FIT_XY
 
-        var newMultiStemHeight =
-                if (stemDirection == StemDirection.UP) intervalConnectionToBottomMargin - (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) - noteStemStartHeight
-                else (smallestMusicHeightToBottomMargin + verticalMusicHeightStep * startMusicHeight) + noteStemStartHeight - intervalConnectionToBottomMargin
-        val startNoteHeadType = startNoteHeadView.headType
-        if (startNoteHeadType == NoteHeadType.CROSS){
-            if (stemDirection == StemDirection.UP) newMultiStemHeight -= (2 * verticalMusicHeightStep - noteStemStartHeight)
-            else newMultiStemHeight -= noteStemStartHeight
+        // calculate stem height
+        val noteHeadBottomHeight = (smallestMusicHeightToBottomMargin + startMusicHeight * verticalMusicHeightStep).toInt()
+        val stemStartHeight = noteHeadBottomHeight + when (stemDirection) {
+            StemDirection.UP -> {
+                when (startNoteHeadView.headType){
+                    NoteHeadType.CROSS -> {
+                        verticalMusicHeightStep * 2
+                    }
+                    NoteHeadType.ELLIPTIC -> {
+                        ellipticStemToBottomHeight.toDouble()
+                    }
+                }
+            }
+            StemDirection.DOWN -> {
+                if (startNoteHeadView.headType == NoteHeadType.ELLIPTIC){
+                    verticalMusicHeightStep * 2 - ellipticStemToBottomHeight
+                }
+                else {
+                    0.0
+                }
+            }
         }
-        val headTypeStemStartHeight = if (startNoteHeadType == NoteHeadType.ELLIPTIC) noteStemStartHeight else noteHeadHeight
 
-        multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight.toInt())
+        var newMultiStemHeight =
+                if (stemDirection == StemDirection.UP) intervalConnectionToBottomMargin - stemStartHeight.toInt()
+                else stemStartHeight.toInt() - intervalConnectionToBottomMargin
+
+        val headTypeStemStartHeight = if (startNoteHeadView.headType == NoteHeadType.ELLIPTIC) ellipticStemToBottomHeight else (verticalMusicHeightStep * 2).toInt()
+
+        multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, newMultiStemHeight)
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)
 
         this.addBarDetailView(multiNoteStemView)
