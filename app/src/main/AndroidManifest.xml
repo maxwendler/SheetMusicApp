@@ -10,6 +10,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.NoActionBar">
         <activity
+            android:name=".CloudFileListActivity"
+            android:label="@string/title_activity_cloud_file_list"
+            android:theme="@style/NoActionBar"></activity>
+        <activity
             android:name=".OverviewActivity"
             android:configChanges="keyboardHidden|screenLayout|orientation|screenSize"
             android:screenOrientation="landscape" />

@@ -2,12 +2,17 @@ package com.example.sheetmusicapp
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Rect
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkRequest
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -25,6 +30,10 @@ import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
 import com.example.sheetmusicapp.ui.*
+import com.firebase.ui.auth.AuthUI
+import com.firebase.ui.auth.IdpResponse
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
@@ -33,11 +42,15 @@ import com.google.firebase.database.ktx.database
 import com.google.firebase.database.ktx.getValue
 import com.google.firebase.ktx.Firebase
 import com.google.gson.GsonBuilder
+import java.util.*
+import kotlin.concurrent.fixedRateTimer
 
 
 const val CREATE_FILE = 1
 const val PICK_FILE = 2
 const val SELECT_BAR = 3
+const val RC_SIGN_IN = 4
+const val OPEN_CLOUD_LIST = 5
 
 class MainActivity : AppCompatActivity(),
         TimeSignatureDialogFragment.NewSignatureListener,
@@ -59,6 +72,10 @@ class MainActivity : AppCompatActivity(),
     var menuIsVisible = false
     var deleteBarButtonDefaultTextColors : ColorStateList? = null
     var cloudFile: DatabaseReference? = null
+    private lateinit var auth: FirebaseAuth
+    lateinit var timer: Timer
+    var networkStatus: Boolean = true
+    var isCloudFile: Boolean = false
 
     lateinit var toggleOpenedButton: ImageButton
     lateinit var toggleNoteHeadButton: ImageButton
@@ -89,7 +106,9 @@ class MainActivity : AppCompatActivity(),
 
         val menuButton: Button = findViewById(R.id.menuButton)
         val openFileButton: Button = findViewById(R.id.button_file_open)
+        val openFileCloudButton: Button = findViewById(R.id.button_file_open_cloud)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
+        val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
         val deleteBarButton: Button = findViewById(R.id.deleteBarButton)
         deleteBarButtonDefaultTextColors = deleteBarButton.textColors
@@ -105,9 +124,15 @@ class MainActivity : AppCompatActivity(),
             }
             startActivityForResult(intent, PICK_FILE)
         }
+        openFileCloudButton.setOnClickListener {
+            openCloudFile()
+        }
 
         saveFileButton.setOnClickListener {
             showSetTitleDialog()
+        }
+        saveFileCloudButton.setOnClickListener {
+            saveToCloud()
         }
         overviewButton.setOnClickListener {
             openOverview()
@@ -153,7 +178,7 @@ class MainActivity : AppCompatActivity(),
                 val json = jsonRaw?.let { String(it) }
                 if (json != null) {
                     loadFile(json)
-                    loadFromCloud()
+                    isCloudFile = false
                 }
             }
         }
@@ -171,18 +196,45 @@ class MainActivity : AppCompatActivity(),
             setMenuButtonsVisibility(false)
             updateTimeSignatureLayout(currentScoreEditingLayout.bar.timeSignature)
         }
+        if (requestCode == RC_SIGN_IN) {
+            val response = IdpResponse.fromResultIntent(data)
+
+            if (resultCode == Activity.RESULT_OK) {
+                // Successfully signed in
+                val user = FirebaseAuth.getInstance().currentUser
+                println(user)
+                // ...
+            } else {
+                // Sign in failed. If response is null the user canceled the
+                // sign-in flow using the back button. Otherwise check
+                // response.getError().getErrorCode() and handle the error.
+                // ...
+            }
+        }
+        if (requestCode == OPEN_CLOUD_LIST && resultCode == Activity.RESULT_OK){
+            if (data == null){
+                throw IllegalArgumentException("No title data was provided!")
+            }
+            val title = data.getStringExtra("title")
+                ?: throw IllegalStateException("No title data was provided as data intent extra.")
+            loadFromCloud(title)
+        }
     }
 
 
     fun setMenuButtonsVisibility(shouldBeVisible: Boolean){
         val openFileButton: Button = findViewById(R.id.button_file_open)
+        val openFileCloudButton: Button = findViewById(R.id.button_file_open_cloud)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
+        val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
         val deleteBarButton: Button = findViewById(R.id.deleteBarButton)
         val insertBarButton: Button = findViewById(R.id.insertBarButton)
         if (shouldBeVisible){
             openFileButton.visibility = View.VISIBLE
+            openFileCloudButton.visibility = View.VISIBLE
             saveFileButton.visibility = View.VISIBLE
+            saveFileCloudButton.visibility = View.VISIBLE
             overviewButton.visibility = View.VISIBLE
             deleteBarButton.visibility = View.VISIBLE
             insertBarButton.visibility = View.VISIBLE
@@ -203,7 +255,9 @@ class MainActivity : AppCompatActivity(),
         }
         else {
             openFileButton.visibility = View.INVISIBLE
+            openFileCloudButton.visibility = View.INVISIBLE
             saveFileButton.visibility = View.INVISIBLE
+            saveFileCloudButton.visibility = View.INVISIBLE
             overviewButton.visibility = View.INVISIBLE
             deleteBarButton.visibility = View.INVISIBLE
             insertBarButton.visibility = View.INVISIBLE
@@ -219,8 +273,10 @@ class MainActivity : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Firebase.database.setPersistenceEnabled(true)
+        auth = Firebase.auth
         actionBar?.hide()
         initParser()
+        initNetwork()
 
         val newScore : Score =
                 if (savedInstanceState != null){
@@ -234,35 +290,6 @@ class MainActivity : AppCompatActivity(),
 
         setContentView(R.layout.activity_main)
 
-        val database = Firebase.database
-        cloudFile = database.getReference(newScore.title)
-
-        val fileListener = object : ValueEventListener {
-            override fun onDataChange(dataSnapshot: DataSnapshot) {
-                // Get Post object and use the values to update the UI
-                val json = dataSnapshot.getValue<String>()
-
-                AlertDialog.Builder(this@MainActivity)
-                    .setTitle("Load from file")
-                    .setMessage("Do you really want to load cloud version?")
-                    .setIcon(android.R.drawable.ic_dialog_alert)
-                    .setPositiveButton("YES",
-                        DialogInterface.OnClickListener { dialog, id ->
-                            Toast.makeText(this@MainActivity, "Load from cloud", Toast.LENGTH_LONG).show()
-                            if (json != null) {
-                                loadFile(json)
-                            }
-                        })
-                    .setNegativeButton("NO", null).show()
-            }
-
-            override fun onCancelled(databaseError: DatabaseError) {
-                // Getting Post failed, log a message
-                Toast.makeText(applicationContext, "Load from cloud fail!", Toast.LENGTH_LONG).show()
-            }
-        }
-        cloudFile!!.addListenerForSingleValueEvent(fileListener)
-
         val mainConstraintLayout = findViewById<ConstraintLayout>(R.id.main)
         mainConstraintLayout.doOnLayout {
             scoreEditingLayout = addScoreEditingLayout(newScore)
@@ -271,6 +298,7 @@ class MainActivity : AppCompatActivity(),
             getStatusBarHeight()
             initMenu()
         }
+        startTimer()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -790,16 +818,28 @@ class MainActivity : AppCompatActivity(),
     }
 
     fun saveToCloud() {
-        val currentScoreEditingLayout = scoreEditingLayout
-                ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+        AlertDialog.Builder(this@MainActivity)
+            .setTitle("Save To Cloud")
+            .setMessage("Do you really want to save it to the cloud?")
+            .setIcon(android.R.drawable.ic_dialog_info)
+            .setPositiveButton("YES",
+                DialogInterface.OnClickListener { dialog, id ->
+                    isCloudFile = true
+                    saveToCloudAuto()
+                })
+            .setNegativeButton("NO", null).show()
+    }
 
-        val database = Firebase.database
-        val myRef = database.getReference(currentScoreEditingLayout.score.title)
+    fun saveToCloudAuto() {
+        val currentScoreEditingLayout = scoreEditingLayout
+            ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+        val user = auth.currentUser ?: throw IllegalStateException("User must login!")
+        val database = Firebase.database.reference
+        val myRef = database.child("storage").child(user.uid).child(currentScoreEditingLayout.score.title)
+
         val score = currentScoreEditingLayout.score;
         val json = parser.setPrettyPrinting().create().toJson(score)
         myRef.setValue(json).addOnSuccessListener {
-            // Write was successful!
-            // ...
             println("upload success")
             Toast.makeText(this, "Upload success", Toast.LENGTH_LONG).show()
         }
@@ -811,11 +851,11 @@ class MainActivity : AppCompatActivity(),
         }
     }
 
-    fun loadFromCloud() {
-        val currentScoreEditingLayout = scoreEditingLayout
-            ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
-        val database = Firebase.database
-        cloudFile = database.getReference(currentScoreEditingLayout.score.title)
+    fun loadFromCloud(title: String) {
+        val user = auth.currentUser ?: throw IllegalStateException("User must login!")
+
+        val database = Firebase.database.reference
+        cloudFile = database.child("storage").child(user.uid).child(title)
 
         val fileListener = object : ValueEventListener {
             override fun onDataChange(dataSnapshot: DataSnapshot) {
@@ -832,6 +872,7 @@ class MainActivity : AppCompatActivity(),
                     .setPositiveButton("YES",
                         DialogInterface.OnClickListener { dialog, id ->
                             loadFile(json)
+                            isCloudFile = true
                         })
                     .setNegativeButton("NO", null).show()
             }
@@ -864,5 +905,63 @@ class MainActivity : AppCompatActivity(),
             timeSignatureLayout = addTimeSignatureLayout(test.barList[0].timeSignature)
             getStatusBarHeight()
         }
+    }
+
+    fun openCloudFile() {
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            login()
+            Toast.makeText(this@MainActivity, "Please login first and then open again", Toast.LENGTH_LONG).show()
+        } else {
+            val intent = Intent(this, CloudFileListActivity::class.java)
+            startActivityForResult(intent, OPEN_CLOUD_LIST)
+        }
+    }
+
+    fun login() {
+        val providers = arrayListOf(
+            AuthUI.IdpConfig.EmailBuilder().build()
+        )
+        startActivityForResult(
+            AuthUI.getInstance()
+                .createSignInIntentBuilder()
+                .setAvailableProviders(providers)
+                .build(),
+            RC_SIGN_IN)
+    }
+
+    fun logout() {
+        Firebase.auth.signOut()
+    }
+
+    fun initNetwork() {
+        val cm:ConnectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val builder: NetworkRequest.Builder = NetworkRequest.Builder()
+
+        cm.registerNetworkCallback(
+            builder.build(),
+            object : ConnectivityManager.NetworkCallback() {
+
+                override fun onAvailable(network: Network) {
+                    Log.i("MainActivity", "onAvailable!")
+                    // check if NetworkCapabilities has TRANSPORT_WIFI
+                    networkStatus = true
+//                    val isWifi:Boolean = cm.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                }
+
+                override fun onLost(network: Network) {
+                    networkStatus = false
+                    Log.i("MainActivity", "onLost!")
+                }
+            }
+        )
+    }
+    fun startTimer() {
+        timer = fixedRateTimer("", false, 0, 60000) {
+            if (auth.currentUser != null && networkStatus && isCloudFile) saveToCloudAuto()
+        }
+    }
+    fun endTimer() {
+        timer.cancel()
     }
 }

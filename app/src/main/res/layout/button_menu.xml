@@ -22,12 +22,30 @@
         android:visibility="invisible" />
 
     <Button
+        android:id="@+id/button_file_open_cloud"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:text="OPEN(C)"
+        android:visibility="invisible" />
+
+    <Button
         android:id="@+id/button_file_save"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minWidth="0dp"
         android:minHeight="0dp"
-        android:text="save"
+        android:text="SAVE"
+        android:visibility="invisible" />
+
+    <Button
+        android:id="@+id/button_file_save_cloud"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:text="SAVE(C)"
         android:visibility="invisible" />
 
     <Button
