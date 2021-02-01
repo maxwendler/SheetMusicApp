@@ -1,11 +1,8 @@
 package com.example.sheetmusicapp
 
-import android.app.Activity
 import android.app.AlertDialog
-import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.graphics.Rect
 import android.net.ConnectivityManager
 import android.net.Network
@@ -56,7 +53,8 @@ class MainActivity : AppCompatActivity(),
         TimeSignatureDialogFragment.NewSignatureListener,
         LengthSelectionDialogFragment.NewLengthListener,
         BarEditingOverlayLayout.GridActionUpListener,
-        SetTitleDialogFragment.SetTitleListener{
+        SetTitleDialogFragment.SetTitleListener,
+        DeleteInsertBarDialogFragment.BarsModListener{
     var parser = GsonBuilder()
     var scoreEditingLayout : ScoreEditingLayout? = null
     var timeSignatureLayout: TimeSignatureLayout? = null
@@ -70,7 +68,6 @@ class MainActivity : AppCompatActivity(),
     var mainHeight : Int = 0
     var statusBarHeight : Int = 0
     var menuIsVisible = false
-    var deleteBarButtonDefaultTextColors : ColorStateList? = null
     var cloudFile: DatabaseReference? = null
     private lateinit var auth: FirebaseAuth
     lateinit var timer: Timer
@@ -110,9 +107,7 @@ class MainActivity : AppCompatActivity(),
         val saveFileButton: Button = findViewById(R.id.button_file_save)
         val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
-        val deleteBarButton: Button = findViewById(R.id.deleteBarButton)
-        deleteBarButtonDefaultTextColors = deleteBarButton.textColors
-        val insertBarButton: Button = findViewById(R.id.insertBarButton)
+        val barsModButton: Button = findViewById(R.id.barsModButton)
 
         menuButton.setOnClickListener {
             toggleMenuButtonsVisibility()
@@ -137,13 +132,9 @@ class MainActivity : AppCompatActivity(),
         overviewButton.setOnClickListener {
             openOverview()
         }
-        deleteBarButton.setOnClickListener {
-            deleteBar()
+        barsModButton.setOnClickListener {
+            showBarsModificationDialog()
         }
-        insertBarButton.setOnClickListener {
-            insertBar()
-        }
-
     }
 
 
@@ -228,29 +219,14 @@ class MainActivity : AppCompatActivity(),
         val saveFileButton: Button = findViewById(R.id.button_file_save)
         val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
-        val deleteBarButton: Button = findViewById(R.id.deleteBarButton)
-        val insertBarButton: Button = findViewById(R.id.insertBarButton)
+        val barsModButton: Button = findViewById(R.id.barsModButton)
         if (shouldBeVisible){
             openFileButton.visibility = View.VISIBLE
             openFileCloudButton.visibility = View.VISIBLE
             saveFileButton.visibility = View.VISIBLE
             saveFileCloudButton.visibility = View.VISIBLE
             overviewButton.visibility = View.VISIBLE
-            deleteBarButton.visibility = View.VISIBLE
-            insertBarButton.visibility = View.VISIBLE
-
-            val currentDeleteBarButtonDefaultTextColorId = deleteBarButtonDefaultTextColors
-            if (currentDeleteBarButtonDefaultTextColorId != null) {
-                val currentScoreEditingLayout = scoreEditingLayout
-                        ?: throw IllegalStateException("Can't set bar delete button clickability if 'is only bar' can't be evaluated because scoreEditingLayout is null!")
-                if (currentScoreEditingLayout.bars.size > 1) {
-                    deleteBarButton.isClickable = true
-                    deleteBarButton.setTextColor(deleteBarButtonDefaultTextColors)
-                } else {
-                    deleteBarButton.isClickable = false
-                    deleteBarButton.setTextColor(resources.getColor(R.color.purple_200))
-                }
-            }
+            barsModButton.visibility = View.VISIBLE
             menuIsVisible = true
         }
         else {
@@ -259,8 +235,7 @@ class MainActivity : AppCompatActivity(),
             saveFileButton.visibility = View.INVISIBLE
             saveFileCloudButton.visibility = View.INVISIBLE
             overviewButton.visibility = View.INVISIBLE
-            deleteBarButton.visibility = View.INVISIBLE
-            insertBarButton.visibility = View.INVISIBLE
+            barsModButton.visibility = View.INVISIBLE
             menuIsVisible = false
         }
     }
@@ -775,7 +750,9 @@ class MainActivity : AppCompatActivity(),
                 currentScoreEditingLayout.bars[i].barNr--
             }
             previousBar(View(this))
-            currentScoreEditingLayout.bars.removeAt(currentScoreEditingLayout.barIdx + 1)
+            if (currentScoreEditingLayout.bars.size >= currentScoreEditingLayout.barIdx + 2) {
+                currentScoreEditingLayout.bars.removeAt(currentScoreEditingLayout.barIdx + 1)
+            }
         }
     }
 
@@ -963,5 +940,21 @@ class MainActivity : AppCompatActivity(),
     }
     fun endTimer() {
         timer.cancel()
+    }
+
+    fun showBarsModificationDialog(){
+        val currentScoreEditingLayout = scoreEditingLayout
+            ?: throw IllegalStateException("Can't check if only one bar exists when scoreEditingLayout is null")
+        val deleteEnabled = currentScoreEditingLayout.bars.size > 1
+        val dialogFrag = DeleteInsertBarDialogFragment(deleteEnabled)
+        dialogFrag.show(supportFragmentManager, "barsModificationDialog")
+    }
+
+    override fun onBarDeleteButtonClick() {
+        deleteBar()
+    }
+
+    override fun onBarInsertButtonClick() {
+        insertBar()
     }
 }

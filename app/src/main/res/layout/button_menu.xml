@@ -57,20 +57,12 @@
         android:visibility="invisible" />
 
     <Button
-        android:id="@+id/deleteBarButton"
+        android:id="@+id/barsModButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minWidth="0dp"
         android:minHeight="0dp"
-        android:text="delete bar"
+        android:text="bars"
         android:visibility="invisible" />
 
-    <Button
-        android:id="@+id/insertBarButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minWidth="0dp"
-        android:minHeight="0dp"
-        android:text="insert bar"
-        android:visibility="invisible" />
 </LinearLayout>
