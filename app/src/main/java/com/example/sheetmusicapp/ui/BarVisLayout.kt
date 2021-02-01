@@ -1109,7 +1109,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
             }
         }
         val headTypeStemStartHeight = if (startNoteHeadView.headType == NoteHeadType.ELLIPTIC) ellipticStemToBottomHeight else (verticalMusicHeightStep * 2).toInt()
-        var multiStemHeight = noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2) + heightDifferenceToExtremum - headTypeStemStartHeight
+        val multiStemHeight = noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2) + heightDifferenceToExtremum - headTypeStemStartHeight
 
         multiNoteStemView.layoutParams = ViewGroup.LayoutParams(noteStemWidth, multiStemHeight.toInt())
         multiNoteStemView.setImageResource(R.drawable.black_rectangle)

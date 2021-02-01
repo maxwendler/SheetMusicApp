@@ -32,7 +32,7 @@ class RhythmicInterval(private val length : RhythmicLength, private val noteHead
 
     var startUnit = initStartUnit
         set(value) {
-            endUnit = startUnit + (length.lengthInUnits - 1)
+            endUnit = value + (length.lengthInUnits - 1)
             field = value
         }
 

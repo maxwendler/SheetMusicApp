@@ -465,7 +465,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         }
     }
 
-    fun changeTimeSignatureToSmaller(newTimeSignature: TimeSignature) : MutableMap<Int, MutableList<RhythmicInterval>>?{
+    fun changeTimeSignatureToSmaller(newTimeSignature: TimeSignature) : MutableMap<Int, MutableList<MutableList<RhythmicInterval>>>?{
         if (newTimeSignature.units >= timeSignature.units){
             throw IllegalArgumentException("New time signature is not smaller!")
         }
@@ -477,66 +477,114 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
             return null
         }
         else {
-            val newBarVoiceIntervals = mutableMapOf<Int, MutableList<RhythmicInterval>>()
-            for (pair in voices){
+            val newBarsVoiceIntervals =  mutableMapOf<Int, MutableList<MutableList<RhythmicInterval>>>()
+            for (pair in voices) {
                 val voiceNum = pair.key
                 val voice = pair.value
-                val voiceIntervals = voice.intervals
-                var lastContainedIntervalIdx = 0
-                var cutInTwoInterval : RhythmicInterval? = null
+                var remainingIntervals = voice.intervals.toMutableList()
+                // create new following bars iteratively
+                val resultingBarCount = (timeSignature.units - 1) / newTimeSignature.units + 1
+                newBarsVoiceIntervals[voiceNum] = mutableListOf()
 
-                for (i in voice.intervals.indices){
-                    val currentInterval = voiceIntervals[i]
-                    if (currentInterval.endUnit > newTimeSignature.units){
-                        if (currentInterval.startUnit <= newTimeSignature.units){
-                            cutInTwoInterval = currentInterval
-                            lastContainedIntervalIdx = i
+                for (i in 1..resultingBarCount) {
+
+                    // find idx of last interval contained by current bar
+                    // & interval that gets cut in two, if it exists
+                    var lastContainedIntervalIdx = -1
+                    var cutInTwoInterval: RhythmicInterval? = null
+                    for (j in remainingIntervals.indices) {
+                        val currentInterval = remainingIntervals[j]
+                        if (currentInterval.endUnit > newTimeSignature.units) {
+                            if (currentInterval.startUnit <= newTimeSignature.units) {
+                                cutInTwoInterval = currentInterval
+                                lastContainedIntervalIdx = j
+                            }
+                            break
+                        } else lastContainedIntervalIdx = j
+                    }
+
+                    // exclude cutInTwoInterval if it exists
+                    val currentBarIntervals =
+                        if (lastContainedIntervalIdx != -1) {
+                            remainingIntervals.subList(0, lastContainedIntervalIdx + 1).toMutableList()
                         }
-                        break
+                        else {
+                            mutableListOf()
+                        }
+
+                    remainingIntervals = remainingIntervals.subList(
+                        lastContainedIntervalIdx + 1,
+                        remainingIntervals.size
+                    ).toMutableList()
+
+                    // create new intervals for cut interval and add them to end of current, start of next bar
+                    if (cutInTwoInterval != null) {
+
+                        val currentBarRemainingUnits =
+                            newTimeSignature.units + 1 - cutInTwoInterval.startUnit
+                        val currentBarRemainderLengths =
+                            lengthsFromUnitLengthAsc(currentBarRemainingUnits)
+                        val nextBarRemainingUnits =
+                            cutInTwoInterval.endUnit - newTimeSignature.units
+                        val nextBarRemainderLengths =
+                            lengthsFromUnitLengthAsc(nextBarRemainingUnits)
+
+                        // deal with current bar
+                        val newCutInTwoIntervalLength = currentBarRemainderLengths.removeFirst()
+                        // adapt existing cutInTwoInterval copy in current bar intervals
+                        currentBarIntervals[lastContainedIntervalIdx] =
+                            RhythmicInterval(
+                                newCutInTwoIntervalLength,
+                                cutInTwoInterval.getNoteHeadsCopy(),
+                                cutInTwoInterval.startUnit
+                            )
+                        var startUnit =
+                            cutInTwoInterval.startUnit + newCutInTwoIntervalLength.lengthInUnits
+                        // append rests if needed to fill up the bar
+                        for (length in currentBarRemainderLengths) {
+                            currentBarIntervals.add(
+                                RhythmicInterval(
+                                    length,
+                                    mutableMapOf(),
+                                    startUnit
+                                )
+                            )
+                            startUnit += length.lengthInUnits
+                        }
+
+                        // deal with next bar
+                        val newCutInTwoIntervalLengthInNextBar =
+                            nextBarRemainderLengths.removeFirst()
+                        remainingIntervals.add(
+                            0,
+                            RhythmicInterval(
+                                newCutInTwoIntervalLengthInNextBar,
+                                cutInTwoInterval.getNoteHeadsCopy(),
+                                startUnit
+                            )
+                        )
+                        startUnit += newCutInTwoIntervalLengthInNextBar.lengthInUnits
+                        var idxInRemaining = 1
+                        for (length in nextBarRemainderLengths) {
+                            remainingIntervals.add(
+                                idxInRemaining,
+                                RhythmicInterval(length, mutableMapOf(), startUnit)
+                            )
+                            startUnit += length.lengthInUnits
+                            idxInRemaining++
+                        }
                     }
-                    else lastContainedIntervalIdx = i
-                }
 
-                val remainingIntervalsForNextBar = voiceIntervals.subList(lastContainedIntervalIdx + 1, voiceIntervals.size).toMutableList()
-                val currentVoiceIntervalsSize = voiceIntervals.size
-                for (i in (lastContainedIntervalIdx + 1) until currentVoiceIntervalsSize){
-                    voiceIntervals.removeLast()
-                }
-                val nextBarIntervalsOfVoice = mutableListOf<RhythmicInterval>()
+                    if (i == 1) {
+                        voice.intervals.clear()
+                        voice.intervals.addAll(currentBarIntervals)
+                    } else newBarsVoiceIntervals[voiceNum]?.add(currentBarIntervals)
 
-                if (cutInTwoInterval != null){
-                    val currentBarRemainingUnits = newTimeSignature.units + 1 - cutInTwoInterval.startUnit
-                    val currentBarRemainderLengths = lengthsFromUnitLengthAsc(currentBarRemainingUnits)
-                    val nextBarRemainingUnits = cutInTwoInterval.endUnit - newTimeSignature.units
-                    val nextBarRemainderLengths = lengthsFromUnitLengthAsc(nextBarRemainingUnits)
-
-                    // deal with current bar
-                    val newCutInTwoIntervalLength = currentBarRemainderLengths.removeFirst()
-                    voiceIntervals[lastContainedIntervalIdx] =
-                            RhythmicInterval(newCutInTwoIntervalLength, cutInTwoInterval.getNoteHeadsCopy(), cutInTwoInterval.startUnit)
-                    var startUnit = cutInTwoInterval.startUnit + newCutInTwoIntervalLength.lengthInUnits
-                    for (length in currentBarRemainderLengths){
-                        voiceIntervals.add(RhythmicInterval(length, mutableMapOf(), startUnit))
-                        startUnit += length.lengthInUnits
-                    }
-
-                    // deal with next bar
-                    val newCutInTwoIntervalLengthInNextBar = nextBarRemainderLengths.removeFirst()
-                    nextBarIntervalsOfVoice.add(RhythmicInterval(newCutInTwoIntervalLengthInNextBar, cutInTwoInterval.getNoteHeadsCopy(), 1))
-                    startUnit = newCutInTwoIntervalLengthInNextBar.lengthInUnits + 1
-                    for (length in nextBarRemainderLengths){
-                        nextBarIntervalsOfVoice.add(RhythmicInterval(length, mutableMapOf(), startUnit))
-                        startUnit += length.lengthInUnits
+                    // adapt end units implicitly to "slice of" bar from beginning by comparison with time signature units
+                    remainingIntervals.forEach {
+                        it.startUnit -= newTimeSignature.units
                     }
                 }
-
-                val lastIntervalFromCurrentBar = nextBarIntervalsOfVoice.lastOrNull()
-                var startUnit = if(lastIntervalFromCurrentBar == null) 1 else lastIntervalFromCurrentBar.endUnit + 1
-                for (interval in remainingIntervalsForNextBar){
-                    nextBarIntervalsOfVoice.add(RhythmicInterval(interval.getLengthCopy(), interval.getNoteHeadsCopy(), startUnit))
-                    startUnit += interval.getLengthCopy().lengthInUnits
-                }
-                newBarVoiceIntervals[voiceNum] = nextBarIntervalsOfVoice
             }
 
             timeSignature = newTimeSignature
@@ -544,7 +592,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                 voice.initializeSubGroups()
             }
 
-            return newBarVoiceIntervals
+            return newBarsVoiceIntervals
         }
     }
 

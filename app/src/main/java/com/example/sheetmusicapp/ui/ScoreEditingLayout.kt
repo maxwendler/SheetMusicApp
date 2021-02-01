@@ -193,54 +193,51 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
                 }
             }
             else if (newTimeSignature.units < bar.timeSignature.units) {
-                val newNextBarIntervalsOfVoices = bar.changeTimeSignatureToSmaller(newTimeSignature)
-                if (newNextBarIntervalsOfVoices != null){
-                    val newNextBar = Bar.makeEmpty(bar.barNr + 1, newTimeSignature)
-                    var editedVoiceOne = false
-                    var onlyRestsInBar = true
-                    for (pair in newNextBarIntervalsOfVoices){
-                        val voiceNum = pair.key
-                        val intervals = pair.value
-
-                        var onlyRestsInVoice = true
-                        for (interval in intervals){
-                            if (interval.getNoteHeadsCopy().isNotEmpty()){
-                                onlyRestsInVoice = false
-                                break
+                val newBarsVoiceIntervals = bar.changeTimeSignatureToSmaller(newTimeSignature)
+                if (newBarsVoiceIntervals != null){
+                    val arbitraryVoice = newBarsVoiceIntervals.toList().firstOrNull()
+                        ?: throw IllegalStateException("newBarsVoiceIntervals should be null instead of returning empty map!")
+                    // create the new bars
+                    for (newBarIdx in arbitraryVoice.second.indices){
+                        val newBarVoiceIntervals : MutableMap<Int, MutableList<RhythmicInterval>> = mutableMapOf()
+                        val onlyRestVoiceNums = mutableListOf<Int>()
+                        var onlyHasRests = true
+                        for (voiceNum in 1..4){
+                            if (newBarsVoiceIntervals.containsKey(voiceNum)){
+                                val currentBarIntervalsOfVoice = newBarsVoiceIntervals[voiceNum]?.get(newBarIdx)
+                                    ?: throw IllegalStateException("newBarsVoiceIntervals contains no element at this barIdx!")
+                                if (currentBarIntervalsOfVoice.isNotEmpty()){
+                                    var isListOfRests = true
+                                    for (interval in currentBarIntervalsOfVoice){
+                                        if (!interval.isRest){
+                                            isListOfRests = false
+                                            onlyHasRests = false
+                                            break
+                                        }
+                                    }
+                                    if (isListOfRests) onlyRestVoiceNums.add(voiceNum)
+                                    newBarVoiceIntervals[voiceNum] = currentBarIntervalsOfVoice
+                                }
                             }
                         }
 
-                        if (!onlyRestsInVoice){
-                            onlyRestsInBar = false
-
-                            if (voiceNum == 1) editedVoiceOne = true
-                            else newNextBar.addEmptyVoice(voiceNum)
-                            val voice : Voice = newNextBar.voices[voiceNum]
-                                    ?: throw IllegalStateException("addEmptyVoice() must have failed!")
-
-                            voice.intervals.clear()
-                            for (interval in intervals){
-                                voice.intervals.add(interval)
-                            }
-                            val currentLastInterval = voice.intervals.last()
-                            val remainingUnits = newTimeSignature.units - currentLastInterval.endUnit
-                            val remainderLengths = lengthsFromUnitLengthAsc(remainingUnits)
-                            var startUnit = currentLastInterval.endUnit + 1
-                            for (length in remainderLengths){
-                                voice.intervals.add(RhythmicInterval(length, mutableMapOf(), startUnit))
-                                startUnit += length.lengthInUnits
-                            }
-                            voice.initializeSubGroups()
+                        if (!onlyHasRests){
+                            onlyRestVoiceNums.forEach { newBarVoiceIntervals.remove(it) }
+                        }
+                        else {
+                            newBarVoiceIntervals.clear()
                         }
 
+                        if (newBarVoiceIntervals.isEmpty()){
+                            bars.add(barIdx + newBarIdx + 1, Bar.makeEmpty(bar.barNr + newBarIdx + 1, newTimeSignature))
+                        }
+                        else {
+                            bars.add(barIdx + newBarIdx + 1, Bar(bar.barNr + newBarIdx + 1, newTimeSignature, newBarVoiceIntervals))
+                        }
                     }
-                    if (!editedVoiceOne) bar.voices.remove(1)
-                    if (!onlyRestsInBar){
-                        newNextBar.calculateVoiceStemDirections()
-                        bars.add(barIdx + 1, newNextBar)
-                        for (otherBar in bars.subList(barIdx + 2, bars.size)){
-                            otherBar.barNr += 1
-                        }
+
+                    for (otherBar in bars.subList(barIdx + 1 + arbitraryVoice.second.size, bars.size)){
+                        otherBar.barNr += arbitraryVoice.second.size
                     }
                 }
             }
