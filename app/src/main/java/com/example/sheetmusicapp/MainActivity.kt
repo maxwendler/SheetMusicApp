@@ -103,9 +103,7 @@ class MainActivity : AppCompatActivity(),
 
         val menuButton: Button = findViewById(R.id.menuButton)
         val openFileButton: Button = findViewById(R.id.button_file_open)
-        val openFileCloudButton: Button = findViewById(R.id.button_file_open_cloud)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
-        val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
         val barsModButton: Button = findViewById(R.id.barsModButton)
         val logoutButton: Button = findViewById(R.id.button_logout)
@@ -114,21 +112,10 @@ class MainActivity : AppCompatActivity(),
             toggleMenuButtonsVisibility()
         }
         openFileButton.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "application/json"
-            }
-            startActivityForResult(intent, PICK_FILE)
+            openSelection()
         }
-        openFileCloudButton.setOnClickListener {
-            openCloudFile()
-        }
-
         saveFileButton.setOnClickListener {
             showSetTitleDialog()
-        }
-        saveFileCloudButton.setOnClickListener {
-            saveToCloud()
         }
         overviewButton.setOnClickListener {
             openOverview()
@@ -154,15 +141,6 @@ class MainActivity : AppCompatActivity(),
                 val json = parser.setPrettyPrinting().create().toJson(score)
                 val file = contentResolver.openOutputStream(uri)
                 file?.write(json.toByteArray())
-                AlertDialog.Builder(this@MainActivity)
-                    .setTitle("Save file to cloud")
-                    .setMessage("Do you want to upload file to the cloud?")
-                    .setIcon(android.R.drawable.ic_dialog_alert)
-                    .setPositiveButton("YES",
-                        DialogInterface.OnClickListener { dialog, id ->
-                            saveToCloudWithMessage()
-                        })
-                    .setNegativeButton("NO", null).show()
             }
         }
         if (requestCode == PICK_FILE && resultCode == RESULT_OK) {
@@ -219,17 +197,13 @@ class MainActivity : AppCompatActivity(),
 
     fun setMenuButtonsVisibility(shouldBeVisible: Boolean){
         val openFileButton: Button = findViewById(R.id.button_file_open)
-        val openFileCloudButton: Button = findViewById(R.id.button_file_open_cloud)
         val saveFileButton: Button = findViewById(R.id.button_file_save)
-        val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
         val barsModButton: Button = findViewById(R.id.barsModButton)
         val logoutButton: Button = findViewById(R.id.button_logout)
         if (shouldBeVisible){
             openFileButton.visibility = View.VISIBLE
-            openFileCloudButton.visibility = View.VISIBLE
             saveFileButton.visibility = View.VISIBLE
-            saveFileCloudButton.visibility = View.VISIBLE
             overviewButton.visibility = View.VISIBLE
             barsModButton.visibility = View.VISIBLE
             logoutButton.visibility = View.VISIBLE
@@ -237,9 +211,7 @@ class MainActivity : AppCompatActivity(),
         }
         else {
             openFileButton.visibility = View.INVISIBLE
-            openFileCloudButton.visibility = View.INVISIBLE
             saveFileButton.visibility = View.INVISIBLE
-            saveFileCloudButton.visibility = View.INVISIBLE
             overviewButton.visibility = View.INVISIBLE
             barsModButton.visibility = View.INVISIBLE
             logoutButton.visibility = View.INVISIBLE
@@ -790,14 +762,23 @@ class MainActivity : AppCompatActivity(),
                 ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
         currentScoreEditingLayout.score.title = title
 
-        // save to cloud with changed title
-
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "application/json"
-            putExtra(Intent.EXTRA_TITLE, "$title.json")
-        }
-        startActivityForResult(intent, CREATE_FILE)
+        AlertDialog.Builder(this@MainActivity)
+            .setTitle("Select the save method")
+            .setMessage("Do you want to save as a local file or a cloud file?")
+            .setIcon(android.R.drawable.ic_dialog_alert)
+            .setPositiveButton("Local",
+                    DialogInterface.OnClickListener { dialog, id ->
+                        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_TITLE, "$title.json")
+                        }
+                        startActivityForResult(intent, CREATE_FILE)
+                    })
+            .setNegativeButton("Cloud",
+                    DialogInterface.OnClickListener { dialog, id ->
+                        saveToCloudWithMessage()
+                    }).show()
     }
 
     fun saveToCloudWithMessage() {
@@ -816,6 +797,7 @@ class MainActivity : AppCompatActivity(),
         myRef.setValue(json).addOnSuccessListener {
             println("upload success")
             Toast.makeText(this, "Upload success", Toast.LENGTH_LONG).show()
+            isCloudFile = true
         }
         .addOnFailureListener {
             // Write failed
@@ -823,23 +805,6 @@ class MainActivity : AppCompatActivity(),
             println("upload failed")
             Toast.makeText(this, "Upload failed", Toast.LENGTH_LONG).show()
         }
-    }
-
-    fun saveToCloud() {
-        if (auth.currentUser == null) {
-            login()
-            return
-        }
-        AlertDialog.Builder(this@MainActivity)
-            .setTitle("Save To Cloud")
-            .setMessage("Do you really want to save it to the cloud?")
-            .setIcon(android.R.drawable.ic_dialog_info)
-            .setPositiveButton("YES",
-                DialogInterface.OnClickListener { dialog, id ->
-                    isCloudFile = true
-                    saveToCloudWithMessage()
-                })
-            .setNegativeButton("NO", null).show()
     }
 
     fun saveToCloudAuto() {
@@ -868,16 +833,8 @@ class MainActivity : AppCompatActivity(),
                     Toast.makeText(this@MainActivity, "Not found in cloud", Toast.LENGTH_LONG).show()
                     return
                 }
-                AlertDialog.Builder(this@MainActivity)
-                    .setTitle("Load from file")
-                    .setMessage("Do you really want to load cloud version?")
-                    .setIcon(android.R.drawable.ic_dialog_alert)
-                    .setPositiveButton("YES",
-                        DialogInterface.OnClickListener { dialog, id ->
-                            loadFile(json)
-                            isCloudFile = true
-                        })
-                    .setNegativeButton("NO", null).show()
+                loadFile(json)
+                isCloudFile = true
             }
 
             override fun onCancelled(databaseError: DatabaseError) {
@@ -908,6 +865,25 @@ class MainActivity : AppCompatActivity(),
             timeSignatureLayout = addTimeSignatureLayout(test.barList[0].timeSignature)
             getStatusBarHeight()
         }
+    }
+
+    fun openSelection() {
+        AlertDialog.Builder(this@MainActivity)
+            .setTitle("Select the open method")
+            .setMessage("Do you want to open a local file or a cloud file?")
+            .setIcon(android.R.drawable.ic_dialog_alert)
+            .setPositiveButton("Local",
+                DialogInterface.OnClickListener { dialog, id ->
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "application/json"
+                    }
+                    startActivityForResult(intent, PICK_FILE)
+                })
+            .setNegativeButton("Cloud",
+                DialogInterface.OnClickListener { dialog, id ->
+                    openCloudFile()
+                }).show()
     }
 
     fun openCloudFile() {
@@ -966,8 +942,8 @@ class MainActivity : AppCompatActivity(),
     }
     fun startTimer() {
         timer = fixedRateTimer("", false, 0, 60000) {
+            println(isCloudFile)
             if (auth.currentUser != null && networkStatus && isCloudFile) saveToCloudAuto()
-
         }
     }
     fun endTimer() {
