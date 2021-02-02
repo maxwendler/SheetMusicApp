@@ -312,31 +312,31 @@ class MainActivity : AppCompatActivity(),
         val width = (mainLayout.width * 0.7).toInt()
         val barHeight = mainLayout.height * 0.25
 
-        val editableBarLayout = ScoreEditingLayout(
+        val newScoreEditingLayout = ScoreEditingLayout(
             this,
             findViewById(R.id.prevButton),
             barHeight.toInt(),
             score
         )
-        editableBarLayout.id = ViewGroup.generateViewId()
-        editableBarLayout.tag = "editableBarLayout"
-        editableBarLayout.layoutParams = ViewGroup.LayoutParams(
+        newScoreEditingLayout.id = ViewGroup.generateViewId()
+        newScoreEditingLayout.tag = "editableBarLayout"
+        newScoreEditingLayout.layoutParams = ViewGroup.LayoutParams(
             width,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        mainLayout.addView(editableBarLayout)
+        mainLayout.addView(newScoreEditingLayout)
 
         val constraintSet = ConstraintSet()
         constraintSet.clone(mainLayout)
         constraintSet.connect(
-            editableBarLayout.id,
+            newScoreEditingLayout.id,
             ConstraintSet.LEFT,
             R.id.main,
             ConstraintSet.LEFT,
             horizontalBarMargin
         )
         constraintSet.connect(
-            editableBarLayout.id,
+            newScoreEditingLayout.id,
             ConstraintSet.RIGHT,
             R.id.main,
             ConstraintSet.RIGHT,
@@ -344,7 +344,7 @@ class MainActivity : AppCompatActivity(),
         )
         constraintSet.applyTo(mainLayout)
 
-        return editableBarLayout
+        return newScoreEditingLayout
     }
 
     private fun addTimeSignatureLayout(timeSignature: TimeSignature) : TimeSignatureLayout{

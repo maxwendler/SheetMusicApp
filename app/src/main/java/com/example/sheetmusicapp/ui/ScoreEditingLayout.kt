@@ -40,34 +40,33 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
 
 
     init {
-        doOnLayout {
-            val newBarVisLayout = addBarVisLayout(bar)
-            for (i in 1..4){
-                val newOverlay = addBarEditingOverlayLayout()
-                voiceGridOverlays[i] = newOverlay
-                newOverlay.listener = try {
-                    context as MainActivity
-                }
-                catch (e: ClassCastException){
-                    throw IllegalStateException("Context must be MainActivity!")
-                }
-                newOverlay.visibility = INVISIBLE
+
+        val newBarVisLayout = addBarVisLayout(bar)
+        for (i in 1..4){
+            val newOverlay = addBarEditingOverlayLayout()
+            voiceGridOverlays[i] = newOverlay
+            newOverlay.listener = try {
+                context as MainActivity
             }
-            voiceGridOverlays[1]?.visibility = VISIBLE
-            newBarVisLayout.setEditingOverlayCallback { horizontalMargins, voiceNum ->
-                if (voiceNum !in 1..4){
-                    throw IllegalArgumentException("Only voices 1 to 4 can exist!")
-                }
-                val voiceGridOverlay = voiceGridOverlays[voiceNum]
-                if (voiceGridOverlay != null) {
-                    voiceGridOverlay.horizontalMargins = horizontalMargins
-                    if (voiceGridOverlay.width > 0) {
-                        voiceGridOverlay.createOverlay()
-                    }
-                }
+            catch (e: ClassCastException){
+                throw IllegalStateException("Context must be MainActivity!")
             }
-            barVisLayout = newBarVisLayout
+            newOverlay.visibility = INVISIBLE
         }
+        voiceGridOverlays[1]?.visibility = VISIBLE
+        newBarVisLayout.setEditingOverlayCallback { horizontalMargins, voiceNum ->
+            if (voiceNum !in 1..4){
+                throw IllegalArgumentException("Only voices 1 to 4 can exist!")
+            }
+            val voiceGridOverlay = voiceGridOverlays[voiceNum]
+            if (voiceGridOverlay != null) {
+                voiceGridOverlay.horizontalMargins = horizontalMargins
+                if (voiceGridOverlay.width > 0) {
+                    voiceGridOverlay.createOverlay()
+                }
+            }
+        }
+        barVisLayout = newBarVisLayout
     }
 
     private fun addBarVisLayout(bar: Bar) : BarVisLayout{
@@ -88,11 +87,13 @@ class ScoreEditingLayout (context: Context, val prevBarButton: ImageButton ,priv
         barEditingOverlayLayout.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, (barHeight * 1.75).toInt())
         this.addView(barEditingOverlayLayout)
 
-        val constraintSet = ConstraintSet()
-        constraintSet.clone(this)
-        constraintSet.connect(barEditingOverlayLayout.id, ConstraintSet.TOP, this.id, ConstraintSet.TOP)
-        constraintSet.connect(barEditingOverlayLayout.id, ConstraintSet.BOTTOM, this.id, ConstraintSet.BOTTOM)
-        constraintSet.applyTo(this)
+        barEditingOverlayLayout.doOnLayout {
+            val constraintSet = ConstraintSet()
+            constraintSet.clone(this)
+            constraintSet.connect(barEditingOverlayLayout.id, ConstraintSet.TOP, this.id, ConstraintSet.TOP)
+            constraintSet.connect(barEditingOverlayLayout.id, ConstraintSet.BOTTOM, this.id, ConstraintSet.BOTTOM)
+            constraintSet.applyTo(this)
+        }
 
         return barEditingOverlayLayout
     }
