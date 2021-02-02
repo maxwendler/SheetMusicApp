@@ -65,4 +65,13 @@
         android:text="bars"
         android:visibility="invisible" />
 
+    <Button
+        android:id="@+id/button_logout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minWidth="0dp"
+        android:minHeight="0dp"
+        android:text="Log In/Out"
+        android:visibility="invisible" />
+
 </LinearLayout>

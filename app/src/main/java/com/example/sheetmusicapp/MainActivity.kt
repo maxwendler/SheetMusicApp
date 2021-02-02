@@ -108,6 +108,7 @@ class MainActivity : AppCompatActivity(),
         val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
         val barsModButton: Button = findViewById(R.id.barsModButton)
+        val logoutButton: Button = findViewById(R.id.button_logout)
 
         menuButton.setOnClickListener {
             toggleMenuButtonsVisibility()
@@ -135,6 +136,9 @@ class MainActivity : AppCompatActivity(),
         barsModButton.setOnClickListener {
             showBarsModificationDialog()
         }
+        logoutButton.setOnClickListener {
+            logout()
+        }
     }
 
 
@@ -156,7 +160,7 @@ class MainActivity : AppCompatActivity(),
                     .setIcon(android.R.drawable.ic_dialog_alert)
                     .setPositiveButton("YES",
                         DialogInterface.OnClickListener { dialog, id ->
-                            saveToCloud()
+                            saveToCloudWithMessage()
                         })
                     .setNegativeButton("NO", null).show()
             }
@@ -220,6 +224,7 @@ class MainActivity : AppCompatActivity(),
         val saveFileCloudButton: Button = findViewById(R.id.button_file_save_cloud)
         val overviewButton: Button = findViewById(R.id.overviewButton)
         val barsModButton: Button = findViewById(R.id.barsModButton)
+        val logoutButton: Button = findViewById(R.id.button_logout)
         if (shouldBeVisible){
             openFileButton.visibility = View.VISIBLE
             openFileCloudButton.visibility = View.VISIBLE
@@ -227,6 +232,7 @@ class MainActivity : AppCompatActivity(),
             saveFileCloudButton.visibility = View.VISIBLE
             overviewButton.visibility = View.VISIBLE
             barsModButton.visibility = View.VISIBLE
+            logoutButton.visibility = View.VISIBLE
             menuIsVisible = true
         }
         else {
@@ -236,6 +242,7 @@ class MainActivity : AppCompatActivity(),
             saveFileCloudButton.visibility = View.INVISIBLE
             overviewButton.visibility = View.INVISIBLE
             barsModButton.visibility = View.INVISIBLE
+            logoutButton.visibility = View.INVISIBLE
             menuIsVisible = false
         }
     }
@@ -784,7 +791,6 @@ class MainActivity : AppCompatActivity(),
         currentScoreEditingLayout.score.title = title
 
         // save to cloud with changed title
-        saveToCloud()
 
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
@@ -794,22 +800,13 @@ class MainActivity : AppCompatActivity(),
         startActivityForResult(intent, CREATE_FILE)
     }
 
-    fun saveToCloud() {
-        AlertDialog.Builder(this@MainActivity)
-            .setTitle("Save To Cloud")
-            .setMessage("Do you really want to save it to the cloud?")
-            .setIcon(android.R.drawable.ic_dialog_info)
-            .setPositiveButton("YES",
-                DialogInterface.OnClickListener { dialog, id ->
-                    isCloudFile = true
-                    saveToCloudAuto()
-                })
-            .setNegativeButton("NO", null).show()
-    }
-
-    fun saveToCloudAuto() {
+    fun saveToCloudWithMessage() {
+        if (auth.currentUser == null) {
+            login()
+            return
+        }
         val currentScoreEditingLayout = scoreEditingLayout
-            ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+                ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
         val user = auth.currentUser ?: throw IllegalStateException("User must login!")
         val database = Firebase.database.reference
         val myRef = database.child("storage").child(user.uid).child(currentScoreEditingLayout.score.title)
@@ -826,6 +823,35 @@ class MainActivity : AppCompatActivity(),
             println("upload failed")
             Toast.makeText(this, "Upload failed", Toast.LENGTH_LONG).show()
         }
+    }
+
+    fun saveToCloud() {
+        if (auth.currentUser == null) {
+            login()
+            return
+        }
+        AlertDialog.Builder(this@MainActivity)
+            .setTitle("Save To Cloud")
+            .setMessage("Do you really want to save it to the cloud?")
+            .setIcon(android.R.drawable.ic_dialog_info)
+            .setPositiveButton("YES",
+                DialogInterface.OnClickListener { dialog, id ->
+                    isCloudFile = true
+                    saveToCloudWithMessage()
+                })
+            .setNegativeButton("NO", null).show()
+    }
+
+    fun saveToCloudAuto() {
+        val currentScoreEditingLayout = scoreEditingLayout
+            ?: throw IllegalStateException("Can't change score title if scoreEditingLayout is null!")
+        val user = auth.currentUser ?: throw IllegalStateException("User must login!")
+        val database = Firebase.database.reference
+        val myRef = database.child("storage").child(user.uid).child(currentScoreEditingLayout.score.title)
+
+        val score = currentScoreEditingLayout.score;
+        val json = parser.setPrettyPrinting().create().toJson(score)
+        myRef.setValue(json)
     }
 
     fun loadFromCloud(title: String) {
@@ -908,7 +934,12 @@ class MainActivity : AppCompatActivity(),
     }
 
     fun logout() {
-        Firebase.auth.signOut()
+        if (auth.currentUser != null) {
+            Firebase.auth.signOut()
+            Toast.makeText(this@MainActivity, "Log out!", Toast.LENGTH_LONG).show()
+        } else {
+            login()
+        }
     }
 
     fun initNetwork() {
@@ -936,6 +967,7 @@ class MainActivity : AppCompatActivity(),
     fun startTimer() {
         timer = fixedRateTimer("", false, 0, 60000) {
             if (auth.currentUser != null && networkStatus && isCloudFile) saveToCloudAuto()
+
         }
     }
     fun endTimer() {
