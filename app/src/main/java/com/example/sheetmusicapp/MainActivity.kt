@@ -27,6 +27,10 @@ import com.example.sheetmusicapp.parser.ScoreDeserializer
 import com.example.sheetmusicapp.parser.ScoreSerializer
 import com.example.sheetmusicapp.scoreModel.*
 import com.example.sheetmusicapp.ui.*
+import com.example.sheetmusicapp.ui.dialogs.DeleteInsertBarDialogFragment
+import com.example.sheetmusicapp.ui.dialogs.LengthSelectionDialogFragment
+import com.example.sheetmusicapp.ui.dialogs.SetTitleDialogFragment
+import com.example.sheetmusicapp.ui.dialogs.TimeSignatureDialogFragment
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.IdpResponse
 import com.google.firebase.auth.FirebaseAuth

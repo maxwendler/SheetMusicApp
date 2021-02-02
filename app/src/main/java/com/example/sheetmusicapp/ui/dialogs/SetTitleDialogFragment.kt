@@ -1,4 +1,4 @@
-package com.example.sheetmusicapp.ui
+package com.example.sheetmusicapp.ui.dialogs
 
 import android.app.AlertDialog
 import android.app.Dialog
@@ -11,7 +11,15 @@ import android.widget.Toast
 import androidx.fragment.app.DialogFragment
 import java.lang.ClassCastException
 
-class SetTitleDialogFragment(val currentTitle: String) : DialogFragment() {
+/**
+ * Dialog fragment for entering a title to set to the current score and forward the result to
+ * the [SetTitleListener] callback.
+ * On "OK", should forward the resulting title to a listener [Context] which shows this dialog fragment.
+ * MainActivity in this app.
+ *
+ * @param currentTitle The title initially contained by the fragment's [titleEditText].
+ */
+class SetTitleDialogFragment(private val currentTitle: String) : DialogFragment() {
 
     lateinit var listener: SetTitleListener
     lateinit var titleEditText: EditText
@@ -30,6 +38,11 @@ class SetTitleDialogFragment(val currentTitle: String) : DialogFragment() {
         }
     }
 
+    /**
+     * Fills dialog with new instance for [titleEditText] and prepares "OK" callback by setting IME_ACTION_DONE .
+     * Does not set positive button onClickListener (see onResume()), because it needs properties
+     * only available after this function.
+     */
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val alertDialog = activity?.let {
             val builder = AlertDialog.Builder(it)
@@ -50,6 +63,10 @@ class SetTitleDialogFragment(val currentTitle: String) : DialogFragment() {
         return alertDialog
     }
 
+    /**
+     * Sets "OK" button onClickListener, which calls the listeners [SetTitleListener.saveWithTitle]
+     * if evaluation of current [titleEditText] content succeeds in [evaluateTitle].
+     */
     override fun onResume() {
         super.onResume()
         val alertDialog = dialog as AlertDialog?
@@ -65,6 +82,10 @@ class SetTitleDialogFragment(val currentTitle: String) : DialogFragment() {
         }
     }
 
+    /**
+     * Checks a string for constraints for titles. Right now: Titles can't be empty.
+     * Returns true, if it fits them, false otherwise.
+     */
     private fun evaluateTitle(title: String) : Boolean{
         if (title != ""){
             return true

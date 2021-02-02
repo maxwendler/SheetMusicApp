@@ -8,8 +8,14 @@ import android.graphics.RectF
 import android.view.View
 import java.lang.IllegalStateException
 
+/**
+ * Class extending view containing visualization of a bar without any elements, i.e. only
+ * vertical and horizontal lines. Dimensions determined by params width and height, stroke width
+ * by [strokeWidth].
+ */
 class BarDrawableView(context: Context, width: Int, height: Int, private val strokeWidth: Int) : View(context) {
 
+    // reused for drawing bar lines from barPath
     private val paint = Paint()
 
     init {
@@ -21,6 +27,7 @@ class BarDrawableView(context: Context, width: Int, height: Int, private val str
         paint.strokeWidth = strokeWidth.toFloat()
     }
 
+    // Create bar path according to parameter dimensions.
     private val barPath : Path = run {
         val widthMinusStrokeWidth = (width - strokeWidth).toFloat()
         val heightMinusStrokeWidth = (height - strokeWidth).toFloat()

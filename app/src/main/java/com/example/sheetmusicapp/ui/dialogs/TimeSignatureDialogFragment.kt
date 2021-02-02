@@ -1,4 +1,4 @@
-package com.example.sheetmusicapp.ui
+package com.example.sheetmusicapp.ui.dialogs
 
 import android.app.AlertDialog
 import android.app.Dialog
@@ -12,11 +12,17 @@ import com.example.sheetmusicapp.R
 import com.example.sheetmusicapp.scoreModel.TimeSignature
 import java.lang.ClassCastException
 
+/**
+ * Dialog class for inputting a new time signature the current bar should have via two
+ * restricted [EditText]s. Initially shows [timeSignature].
+ * On "OK", forwards the resulting length to a listener [Context] which shows this dialog fragment.
+ * MainActivity in this app.
+ */
 class TimeSignatureDialogFragment(private val timeSignature: TimeSignature) : DialogFragment() {
 
     lateinit var denominatorEditText : EditText
     lateinit var numeratorEditText: EditText
-    internal lateinit var listener: NewSignatureListener
+    private lateinit var listener: NewSignatureListener
 
     interface NewSignatureListener {
         fun onSignatureDialogPositiveClick(dialog : TimeSignatureDialogFragment)
@@ -32,6 +38,11 @@ class TimeSignatureDialogFragment(private val timeSignature: TimeSignature) : Di
         }
     }
 
+    /**
+     * Creates dialog containing new instances for [numeratorEditText] and [denominatorEditText].
+     * Creates them with [EditorInfo.IME_ACTION_DONE], so the onEditorActionListeners set here
+     * can evaluate inputs via [evaluateNumerator] and [evaluateDenominator] respectively.
+     */
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         return activity?.let {
             val builder = AlertDialog.Builder(it)
@@ -68,6 +79,11 @@ class TimeSignatureDialogFragment(private val timeSignature: TimeSignature) : Di
         } ?: throw IllegalStateException("Activity can't be null!")
     }
 
+    /**
+     * If [numeratorText] value is > 12 while denominator is 8, deletes [numeratorEditText] text,
+     * sets according hint and shows according [Toast].
+     * Reconfiguration to unerroneous input situation otherwise.
+     */
     private fun evaluateNumerator(numeratorText : CharSequence){
         if (numeratorText.toString() == "") return
         val numerator = numeratorText.toString().toInt()
@@ -92,6 +108,13 @@ class TimeSignatureDialogFragment(private val timeSignature: TimeSignature) : Di
         }
     }
 
+    /**
+     * If [denominatorText] value is not 2, 4 or 8 (only supported denominators), deletes [denominatorEditText] text
+     * and shows according [Toast].
+     * If [denominatorText] value is 8, sets [numeratorEditText] hint for numerator limitation to 1..12. If also
+     * numerator is not in this range, delete [numeratorEditText] and show according [Toast].
+     * Reconfiguration to unerroneous input situation otherwise.
+     */
     private fun evaluateDenominator(denominatorText : CharSequence){
         if (denominatorText.toString() == "") {
             numeratorEditText.hint = "numerator"

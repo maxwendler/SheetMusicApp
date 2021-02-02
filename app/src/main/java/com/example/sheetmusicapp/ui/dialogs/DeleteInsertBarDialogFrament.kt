@@ -1,4 +1,4 @@
-package com.example.sheetmusicapp.ui
+package com.example.sheetmusicapp.ui.dialogs
 
 import android.app.AlertDialog
 import android.app.Dialog
@@ -7,6 +7,11 @@ import android.os.Bundle
 import androidx.fragment.app.DialogFragment
 import java.lang.ClassCastException
 
+/**
+ * Dialog fragment class for wrapping bar "delete" and "insert" functions, provided in a listener
+ * [Context] which shows this dialog fragment. MainActivity in this app.
+ * [deleteEnabled] decides whether a delete button is shown.
+ */
 class DeleteInsertBarDialogFragment(private val deleteEnabled: Boolean) : DialogFragment() {
 
     lateinit var listener: BarsModListener
@@ -16,6 +21,9 @@ class DeleteInsertBarDialogFragment(private val deleteEnabled: Boolean) : Dialog
         fun onBarDeleteButtonClick()
     }
 
+    /**
+     * Sets listener.
+     */
     override fun onAttach(context: Context) {
         super.onAttach(context)
         try {
@@ -26,6 +34,9 @@ class DeleteInsertBarDialogFragment(private val deleteEnabled: Boolean) : Dialog
         }
     }
 
+    /**
+     * Creates dialog with cancel & insert button. Also delete button if ([deleteEnabled]).
+     */
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         return activity?.let{
             val builder = AlertDialog.Builder(it)

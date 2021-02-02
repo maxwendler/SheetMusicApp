@@ -41,6 +41,10 @@ fun restWidthFromHeight(basicLength: BasicRhythmicLength, height: Double) : Doub
     return width
 }
 
+/**
+ * Converts given [height] of note view, which should be derived from the bar height, into width,
+ * for different [basicLength]s.
+ */
 fun noteWidthFromHeight(basicLength: BasicRhythmicLength, height: Double, type: NoteHeadType) : Double{
     var width = 0.0
     when (type){
@@ -66,6 +70,10 @@ fun noteWidthFromHeight(basicLength: BasicRhythmicLength, height: Double, type: 
     return width
 }
 
+/**
+ * Converts given [noteHeadHeight], which should be derived from the bar height, into note height,
+ * for different [basicLength]s.
+ */
 fun noteHeightFromNodeHeadHeight(basicLength: BasicRhythmicLength, noteHeadHeight: Double) : Double {
     var height = 0.0
     when (basicLength){

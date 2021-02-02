@@ -12,6 +12,10 @@ import androidx.core.widget.TextViewCompat
 import com.example.sheetmusicapp.R
 import com.example.sheetmusicapp.scoreModel.TimeSignature
 
+/**
+ * Vertical linear layout containing a numerator text view, a dividing horizontal line below, and
+ * a denominator text view. Initially displays the time signature from param initTimeSignature.
+ */
 class TimeSignatureLayout (context: Context, initTimeSignature: TimeSignature) : LinearLayout(context) {
 
     var numerator : Int = initTimeSignature.numerator

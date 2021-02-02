@@ -25,6 +25,12 @@ import kotlin.math.min
 const val barsPerLine = 4
 const val linesPerPage = 8
 
+/**
+ * Activity visualizing a whole score as list of pages with lines of bars on them.
+ * Layout determined by [barsPerLine] and [linesPerPage].
+ * Contains a vertical [LinearLayout] with page [ConstraintLayout]s in it, in which the
+ * [BarVisLayout]s are positioned.
+ */
 class OverviewActivity : AppCompatActivity() {
     lateinit var score : Score
     lateinit var overviewLayout : LinearLayout
@@ -41,6 +47,7 @@ class OverviewActivity : AppCompatActivity() {
 
         score = intent.getSerializableExtra("score") as Score
         var barCount = score.barList.size
+        // calculate amount of pages needed
         pageCount = 1
         // first page also needs space for title
         if ((barCount / barsPerLine) > linesPerPage - 1){
@@ -52,6 +59,7 @@ class OverviewActivity : AppCompatActivity() {
             throw IllegalStateException("Score can't be completely empty!")
         }
 
+        // Add page and bar visualization layouts.
         overviewLayout.doOnLayout {
             val pageWidth = it.width - 128
             // A4 ratio
@@ -119,7 +127,12 @@ class OverviewActivity : AppCompatActivity() {
         }
     }
 
-    fun addBarLine(pageLayout: ConstraintLayout, bars: MutableList<Bar>, barLineHeight: Double, barLineWidth: Int, lineIdx: Int){
+    /**
+     * Adds a line of [BarVisLayout]s for [bars] to the given [pageLayout], using [barLineHeight], [barLineWidth] and [lineIdx]
+     * to determine dimensions and constraining parameters.
+     * Adds a [TimeSignatureLayout] on each [BarVisLayout] where a time signature change happens.
+     */
+    private fun addBarLine(pageLayout: ConstraintLayout, bars: MutableList<Bar>, barLineHeight: Double, barLineWidth: Int, lineIdx: Int){
         if (lineIdx < 0 || lineIdx > linesPerPage - 1){
             throw IllegalArgumentException("LineIdx exceeds linesPerPage!")
         }
@@ -167,7 +180,10 @@ class OverviewActivity : AppCompatActivity() {
 
     }
 
-    fun addTimeSignatureLayout(pageLayout: ConstraintLayout, barVisLayout: BarVisLayout, barHeight: Int, timeSignature: TimeSignature){
+    /**
+     * Adds a [TimeSignatureLayout] on top of [barVisLayout] on the given [pageLayout], displaying [timeSignature].
+     */
+    private fun addTimeSignatureLayout(pageLayout: ConstraintLayout, barVisLayout: BarVisLayout, barHeight: Int, timeSignature: TimeSignature){
         val timeSignatureLayout = TimeSignatureLayout(this, timeSignature)
         timeSignatureLayout.id = ViewGroup.generateViewId()
         timeSignatureLayout.layoutParams = ViewGroup.LayoutParams(barHeight / 3, barHeight)

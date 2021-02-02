@@ -126,6 +126,16 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         voices[voice] = Voice(newVoiceIntervals, timeSignature)
     }
 
+    /**
+     * Adds a rest of the specified [RhythmicLength] to the given voice and the given interval position.
+     * If the length is lesser than the one of the interval currently at the specified position, rests will be added to fill the gap.
+     * If the length is greater, following intervals will be removed or shortened accordingly.
+     *
+     * @throws IllegalArgumentException When [voiceNum] is not in 1..4.
+     * @throws IllegalArgumentException When an interval does not exist at the given index. (index out of bounds)
+     * @throws IllegalArgumentException When the given rhythmic length exceeds the length of the bar's time signature when placed at the
+     * position given by intervalIdx.
+     */
     fun addRest(voiceNum: Int, length: RhythmicLength, intervalIdx: Int){
         if (voiceNum !in 1..4){
             throw IllegalArgumentException("Only voices numbered 1 to 4 can exist.")
@@ -160,6 +170,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
      * If the length is lesser than the one of the interval currently at the specified position, rests will be added to fill the gap.
      * If the length is greater, following intervals will be removed or shortened accordingly.
      *
+     * @throws IllegalArgumentException When [voiceNum] is not in 1..4.
      * @throws IllegalArgumentException When an interval does not exist at the given index. (index out of bounds)
      * @throws IllegalArgumentException When the given rhythmic length exceeds the length of the bar's time signature when placed at the
      * position given by intervalIdx.
@@ -202,6 +213,14 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         calculateVoiceStemDirections()
     }
 
+    /**
+     * Removes a note from the [Voice] with the given [voiceNum], [height] and [intervalIdx] in
+     * the voices interval list. Doesn't do anything if no note of this height exists in the
+     * specified interval.
+     *
+     * @throws IllegalArgumentException When an interval does not exist at the given index. (index out of bounds)
+     *
+     */
     fun removeNote(voiceNum: Int, height: Int, intervalIdx: Int){
 
         val voice = voices[voiceNum]
@@ -220,6 +239,14 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         }
     }
 
+    /**
+     * Increases or decreases the length of the interval at [intervalIdx] in [voiceIntervals] to [length].
+     * If the length is lesser than the one of the interval currently at the specified position, rests will be added to fill the gap.
+     * If the length is greater, following intervals will be removed or shortened accordingly.
+     *
+     * @throws IllegalArgumentException When an interval does not exist at the given index. (index out of bounds)
+     * @throws IllegalArgumentException When the function is called with a length that's not different from the current.
+     */
     private fun changeIntervalLength(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, intervalIdx: Int){
         if (intervalIdx >= voiceIntervals.size){
             throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
@@ -269,7 +296,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
     private fun changeIntervalToLarger(voiceIntervals: MutableList<RhythmicInterval>, length: RhythmicLength, intervalIdx: Int){
 
         val intervalAtIdx = voiceIntervals[intervalIdx]
-        // fault tolerance for too large input
+        // Deal with new lengths that still fit the bar.
         if (intervalAtIdx.startUnit + length.lengthInUnits - 1 <= timeSignature.units){
             // Find following intervals fully or partially (cutInTwoInterval) swallowed by the growing interval.
             // Don't delete the intervals that will be fully replaced yet, so unmoved cutInTwoInterval can be handled.
@@ -324,6 +351,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                 voiceIntervals.removeAt(intervalIdx + 1)
             }
         }
+        // Shorten new length to fit the bar.
         else {
             val remainingUnits = timeSignature.units + 1 - intervalAtIdx.startUnit
             val remainderLengths = lengthsFromUnitLengthDesc(remainingUnits)
@@ -337,74 +365,13 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         }
     }
 
-    /*
-    fun addTriplet(voiceNum: Int, length: RhythmicLength, type: NoteHeadType, height: Int, initIntervalIdx: Int){
-        if (length.lengthModifier != LengthModifier.NONE){
-            throw IllegalArgumentException("No triplets of modified lengths can be created!")
-        }
-        if (length.basicLength == BasicRhythmicLength.SIXTEENTH){
-            throw IllegalArgumentException("No triplets of sixteenth length can be created!")
-        }
-
-        if (voiceNum !in 1..4){
-            throw IllegalArgumentException("Only voices numbered 1 to 4 can exist.")
-        }
-
-        var intervalIdx = initIntervalIdx
-        if (voices[voiceNum] == null){
-            addEmptyVoice(voiceNum)
-            intervalIdx = 0
-        }
-
-        val voice = voices[voiceNum]
-
-        if (voice != null){
-            if (intervalIdx >= voice.intervals.size){
-                throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
-            }
-            val intervalAtIdx = voice.intervals[intervalIdx]
-            intervalAtIdx.addNoteHead(height, type)
-            if (length.lengthInUnits != intervalAtIdx.getLengthCopy().lengthInUnits){
-                changeIntervalLength(voice.intervals, length, intervalIdx)
-
-                voice.recalculateSubGroupsFrom(intervalIdx)
-            }
-            calculateVoiceStemDirections()
-        }
-    }
-
-    private fun replaceWithTriplet(voiceIntervals: MutableList<RhythmicInterval>, intervalIdx: Int){
-        if (intervalIdx >= voiceIntervals.size){
-            throw IllegalArgumentException("The given interval index exceeds the amount of existing intervals in the specified voice.")
-        }
-
-        val intervalAtIdx = voiceIntervals[intervalIdx]
-        val tripletSubdivisionLength : BasicRhythmicLength = when(intervalAtIdx.getLengthCopy().basicLength){
-            BasicRhythmicLength.WHOLE -> BasicRhythmicLength.HALF
-            BasicRhythmicLength.HALF -> BasicRhythmicLength.QUARTER
-            BasicRhythmicLength.QUARTER -> BasicRhythmicLength.EIGHTH
-            BasicRhythmicLength.EIGHTH -> BasicRhythmicLength.SIXTEENTH
-            else -> throw IllegalStateException("16ths can't be replaced by triplets.")
-        }
-
-        voiceIntervals.removeAt(intervalIdx)
-        val tripletIntervals = mutableListOf<RhythmicInterval>()
-        var insertIdx = intervalIdx
-        var startUnit = intervalAtIdx.startUnit
-        for (i in 1..3) {
-            val interval = RhythmicInterval(RhythmicLength(tripletSubdivisionLength, LengthModifier.TRIPLET), intervalAtIdx.getNoteHeadsCopy(), startUnit)
-            tripletIntervals.add(interval)
-            voiceIntervals.add(insertIdx, interval)
-            insertIdx++
-            startUnit += RhythmicLength(tripletSubdivisionLength, LengthModifier.TRIPLET).lengthInUnits
-        }
-    }*/
-
     /**
      * Calculates and sets the common stem direction of all bar voices. If only one voice exists,
      * its subgroups can decide their stem direction, therefore it'll be null.
+     *
+     * @throws IllegalStateException When more than 4 voices exist.
      */
-    fun calculateVoiceStemDirections(){
+    private fun calculateVoiceStemDirections(){
         if (voices.size <= 1){
             voices.values.forEach { voice -> voice.stemDirection = null }
         }
@@ -429,6 +396,9 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         }
     }
 
+    /**
+     * Returns true if all of the voices of the bar only contains rests, false otherwise.
+     */
     fun isBarOfRests() : Boolean {
         for (voice in voices.values){
             if (!voice.isVoiceOfRests()){
@@ -438,6 +408,11 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         return true
     }
 
+    /**
+     * Handles time signature increase by inserting rests to fill the bar in all voices.
+     *
+     * @throws IllegalArgumentException When [newTimeSignature] is not actually longer than the current one.
+     */
     fun changeTimeSignatureToLarger(newTimeSignature: TimeSignature){
         if (newTimeSignature.units <= timeSignature.units){
             throw IllegalArgumentException("New time signature is not larger!")
@@ -465,19 +440,29 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
         }
     }
 
+    /**
+     * On time signature length decrease, slices the bar into multiple bars, possibly more than two.
+     * The current bar is adapted to the part that remains for it, while the intervals of the resulting
+     * following ones are returned grouped by voices.
+     *
+     * @throws IllegalStateException When [newTimeSignature] is not actually smaller than the current one.
+     */
     fun changeTimeSignatureToSmaller(newTimeSignature: TimeSignature) : MutableMap<Int, MutableList<MutableList<RhythmicInterval>>>?{
         if (newTimeSignature.units >= timeSignature.units){
             throw IllegalArgumentException("New time signature is not smaller!")
         }
 
+        // When the bar only contains rests, empty it and add a new rest voice of the new time signature.
         if (isBarOfRests()){
             voices.clear()
             timeSignature = newTimeSignature
             addEmptyVoice(1)
             return null
         }
+        // Adapt current bar to its slice and create map to be returned.
         else {
             val newBarsVoiceIntervals =  mutableMapOf<Int, MutableList<MutableList<RhythmicInterval>>>()
+
             for (pair in voices) {
                 val voiceNum = pair.key
                 val voice = pair.value
@@ -486,6 +471,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                 val resultingBarCount = (timeSignature.units - 1) / newTimeSignature.units + 1
                 newBarsVoiceIntervals[voiceNum] = mutableListOf()
 
+                // create the bar slices
                 for (i in 1..resultingBarCount) {
 
                     // find idx of last interval contained by current bar
@@ -529,7 +515,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                         val nextBarRemainderLengths =
                             lengthsFromUnitLengthAsc(nextBarRemainingUnits)
 
-                        // deal with current bar
+                        // deal with part in current bar
                         val newCutInTwoIntervalLength = currentBarRemainderLengths.removeFirst()
                         // adapt existing cutInTwoInterval copy in current bar intervals
                         currentBarIntervals[lastContainedIntervalIdx] =
@@ -552,7 +538,7 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                             startUnit += length.lengthInUnits
                         }
 
-                        // deal with next bar
+                        // deal with part in next bar
                         val newCutInTwoIntervalLengthInNextBar =
                             nextBarRemainderLengths.removeFirst()
                         remainingIntervals.add(
@@ -575,10 +561,13 @@ class Bar(var barNr: Int, initTimeSignature: TimeSignature, voiceIntervals: Map<
                         }
                     }
 
+                    // adapt current bar
                     if (i == 1) {
                         voice.intervals.clear()
                         voice.intervals.addAll(currentBarIntervals)
-                    } else newBarsVoiceIntervals[voiceNum]?.add(currentBarIntervals)
+                    }
+                    // append to list in map to be returned
+                    else newBarsVoiceIntervals[voiceNum]?.add(currentBarIntervals)
 
                     // adapt end units implicitly to "slice of" bar from beginning by comparison with time signature units
                     remainingIntervals.forEach {

@@ -12,9 +12,15 @@ import com.example.sheetmusicapp.R
 import java.lang.IllegalArgumentException
 import kotlin.IllegalStateException
 
-class BarEditingOverlayLayout(context: Context, val barHeight: Int) : ConstraintLayout(context) {
+/**
+ * ConstraintLayout containing a grid of [GridCellView]s which capture touch events on a bar.
+ * Grid created according to bar division into note height spaces 0..12, derived from [barHeight]
+ * and horizontal division according to intervals of a bar voice ([horizontalMargins]), which should be set through
+ * a callback from [BarVisLayout].
+ */
+class BarEditingOverlayLayout(context: Context, private val barHeight: Int) : ConstraintLayout(context) {
 
-    val grid : MutableList<List<GridCellView>> = mutableListOf()
+    private val grid : MutableList<List<GridCellView>> = mutableListOf()
     var horizontalMargins : MutableList<Int>? = null
     var highlightedColumnIdx : Int? = null
     var highlightedRowIdx : Int? = null
@@ -24,28 +30,36 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         doOnLayout { if (horizontalMargins != null) createOverlay() }
     }
 
+    // Listener which should handle the selection of a grid cell via MotionEvent.ACTION_MOVE.
     interface GridActionUpListener {
+        // intervalIdx = horizontalIdx of grid cell, musicHeight = verticalIdx of grid cell
         fun handleActionUp(intervalIdx: Int, musicHeight: Int)
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null){
+            // Highlight cell on initial touch event.
             if (event.action == MotionEvent.ACTION_DOWN){
                 highlightCellColumnAndRow(event.x, event.y)
             }
-
+            // Highlight cell on successive moves.
             if (event.action == MotionEvent.ACTION_MOVE){
                 if (event.y >= 0 && event.y <= this.height)
                     highlightCellColumnAndRow(event.x, event.y)
+                // highlight some horizontal cell with maximum vertical index if touch above
+                // the grid area
                 else if (event.y < 0){
                     highlightCellColumnAndRow(event.x, 1f)
                 }
+                // highlight some horizontal cell with minimum vertical index if touch above
+                // the grid area
                 else if (event.y > this.height){
                     highlightCellColumnAndRow(event.x, height - 1f)
                 }
             }
 
+            // Remove all highlighting and call listener.
             if (event.action == MotionEvent.ACTION_UP){
                 grid.forEach { column ->
                     column.forEach {  cell ->
@@ -69,9 +83,11 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         return super.onTouchEvent(event)
     }
 
+    /**
+     * Maps coordinates within this layout to grid cell. Only returns null if the grid is empty.
+     */
     private fun findGridCell(x: Int, y: Int): GridCellView?{
         if (grid.isNotEmpty()) {
-
             var gridCell: GridCellView? = null
             for (column in grid) {
                 if (column.isEmpty()) throw IllegalStateException("An empty grid column has been set up!")
@@ -92,6 +108,10 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         return null
     }
 
+    /**
+     * Highlights a selected cell in one colour, and its grid column and row in another.
+     * Removes highlighting from all other cells.
+     */
     @RequiresApi(Build.VERSION_CODES.M)
     private fun highlightCellColumnAndRow(touchDownX: Float, touchDownY: Float){
         val gridCell = findGridCell(touchDownX.toInt(),height - touchDownY.toInt())
@@ -104,6 +124,7 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
             gridCell.background.alpha = 60
 
             for (columnIdx in grid.indices){
+                // Highlight cells in row of cell.
                 if (columnIdx != gridCell.horizontalIdx){
                     grid[columnIdx].forEach { cell ->
                         if (cell.verticalIdx == gridCell.verticalIdx){
@@ -116,6 +137,7 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
                         }
                     }
                 }
+                // Highlight column of cell.
                 else {
                     grid[columnIdx].forEach { cell ->
                         if (cell != gridCell){
@@ -128,54 +150,10 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
-    fun changeRowHighlighting(touchMoveY: Float){
-        val currentHighlightedColumnIdx = highlightedColumnIdx
-        if (currentHighlightedColumnIdx != null) {
-            val bottomMargin = (height - touchMoveY).toInt()
-            var verticalIdx: Int? = null
-            for (cellIdx in grid[0].indices) {
-                if (bottomMargin < grid[0][cellIdx].topY) {
-                    verticalIdx = cellIdx
-                    break
-                }
-            }
-            if (verticalIdx == null) {
-                throw IllegalStateException("The grid doesn't overlay the whole area of this layout vertically!")
-            }
-
-            for (columnIdx in grid.indices){
-                if (columnIdx == currentHighlightedColumnIdx){
-                    for (cellIdx in grid[columnIdx].indices){
-                        val cell = grid[columnIdx][cellIdx]
-                        if (cellIdx != verticalIdx){
-                            cell.setBackgroundColor(resources.getColor(R.color.purple_500, resources.newTheme()))
-                            cell.background.alpha = 30
-                        }
-                        else {
-                            cell.setBackgroundColor(resources.getColor(R.color.black, resources.newTheme()))
-                            cell.background.alpha = 60
-                        }
-                    }
-                }
-                else {
-                    for (cellIdx in grid[columnIdx].indices){
-                        val cell = grid[columnIdx][cellIdx]
-                        if (cellIdx != verticalIdx){
-                            cell.setBackgroundColor(resources.getColor(R.color.black, resources.newTheme()))
-                            cell.background.alpha = 0
-                        }
-                        else {
-                            cell.setBackgroundColor(resources.getColor(R.color.purple_500, resources.newTheme()))
-                            cell.background.alpha = 30
-                        }
-                    }
-                }
-            }
-
-        }
-    }
-
+    /**
+     * Creates a new grid of [GridCellView]s, according to [horizontalMargins], hopefully set by a callback
+     * of [BarVisLayout], and division of [barHeight] into musical heights 0..12
+     */
     fun createOverlay(){
         removeAllViews()
 
@@ -196,6 +174,7 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
                 newGrid.add(addConstrainedGridColumn(leftMargin, columnWidth, 0))
                 currentMargins.removeAt(0)
 
+                // remaining grid columns
                 for (i in currentMargins.indices) {
                     leftMargin = currentMargins[i]
                     if (i == currentMargins.size - 1) {
@@ -211,6 +190,12 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         grid.addAll(newGrid)
     }
 
+    /**
+     * Adds a colum of [GridCellView]s to [grid] and this layout, with specified [width] and constrained
+     * to left according to [leftMargin].
+     *
+     * @throws IllegalArgumentException When an id for this layout hasn't been set.
+     */
     private fun addConstrainedGridColumn(leftMargin: Int, width: Int, horizontalIdx: Int) : List<GridCellView>{
 
         if (this.id == 0){
@@ -225,7 +210,6 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         val bottomViewHeight = smallestVerticalMargin.toInt()
         val bottomCellView = GridCellView(context, horizontalIdx, 0, leftMargin + width, bottomViewHeight)
         bottomCellView.id = generateViewId()
-        //bottomCellView.background.alpha = 0
         bottomCellView.layoutParams = LayoutParams(width, bottomViewHeight)
         addView(bottomCellView)
         columnViews.add(bottomCellView)
@@ -236,12 +220,12 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         constraintSet.connect(bottomCellView.id, ConstraintSet.BOTTOM, this.id, ConstraintSet.BOTTOM)
         constraintSet.applyTo(this)
 
+        // create & constrain equally sized middle cells
         val cellHeight = verticalStep.toInt()
         for (i in 0..10){
             val verticalMargin = (smallestVerticalMargin + verticalStep * i).toInt()
             val middleCellView = GridCellView(context, horizontalIdx, i + 1 ,leftMargin + width, (smallestVerticalMargin + verticalStep * (i + 1)).toInt())
             middleCellView.id = generateViewId()
-            //middleCellView.background.alpha = 0
             middleCellView.layoutParams = LayoutParams(width, cellHeight)
             addView(middleCellView)
             columnViews.add(middleCellView)
@@ -255,7 +239,6 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
         // create & constrain larger top cell
         val topCellView = GridCellView(context, horizontalIdx, 12, leftMargin + width, height)
         topCellView.id = generateViewId()
-        // topCellView.background.alpha = 0
         topCellView.layoutParams = LayoutParams(width, bottomViewHeight)
         addView(topCellView)
         columnViews.add(topCellView)
@@ -269,4 +252,8 @@ class BarEditingOverlayLayout(context: Context, val barHeight: Int) : Constraint
     }
 }
 
+/**
+ * View with additional [horizontalIdx] to save represented interval index in voice, [verticalIdx] for represented musical
+ * height, and [rightX] & [topY] to find the cell from touch event coordinates.
+ */
 class GridCellView(context: Context, val horizontalIdx: Int, val verticalIdx: Int, val rightX: Int, val topY: Int) : View(context)

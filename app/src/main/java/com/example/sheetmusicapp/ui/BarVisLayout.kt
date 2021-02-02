@@ -47,6 +47,10 @@ const val BAR_LEFTRIGHT_PADDING_PERCENT = 0.2
 const val BAR_NOTES_PERCENT = 1 - BAR_LEFTRIGHT_PADDING_PERCENT
 const val WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT = 0.025
 
+/**
+ * ConstraintLayout containing the visualizations of the current [bar]. Layouting properties are derived
+ * from [barHeight] and width of this layout after layouting.
+ */
 class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) : ConstraintLayout(context) {
 
     var bar : Bar = initBar
@@ -93,10 +97,17 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         }
     }
 
+    /**
+     * Enables setting of callback to communicate horizontal margins to left of intervals of
+     * a voice to the according [BarEditingOverlayLayout] in [ScoreEditingLayout].
+     */
     fun setEditingOverlayCallback(callback: ((MutableList<Int>, Int) -> Unit)) {
         editingOverlayCallback = callback
     }
 
+    /**
+     * Extension of [addView] which also adds [view] to [barDetailViews].
+     */
     private fun addBarDetailView(view: ImageView){
         barDetailViews.add(view)
         super.addView(view)
@@ -171,6 +182,11 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         return barView
     }
 
+    /**
+     * Adds a text view to display the bar number of the current bar.
+     *
+     * @throws IllegalStateException If a [BarDrawableView] to constrain this text view to wasn't created yet.
+     */
     private fun addBarNrView() : TextView {
 
         val currentBarView = barView
@@ -191,6 +207,32 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         constraintSet.applyTo(this)
 
         return barNrView
+    }
+
+    /**
+     * Returns the note head width for note heads of a specific [type] and [basicLength]
+     */
+    private fun getNoteHeadWidth(type: NoteHeadType, basicLength: BasicRhythmicLength) : Int{
+        return when (type){
+            NoteHeadType.ELLIPTIC -> {
+                if (basicLength != BasicRhythmicLength.WHOLE) noteHeadWidthForNonWholes
+                else noteWidthFromHeight(BasicRhythmicLength.WHOLE, noteHeadHeight.toDouble(), type).toInt()
+            }
+            NoteHeadType.CROSS -> {
+                noteHeadHeight
+            }
+        }
+    }
+
+    /**
+     * Returns the height of a rest view of a given [basicLength], derived from [barHeight].
+     */
+    private fun getRestHeight(basicLength: BasicRhythmicLength) : Double{
+        return when (basicLength){
+            BasicRhythmicLength.EIGHTH -> verticalMusicHeightStep * 4 * 0.9
+            BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.QUARTER -> verticalMusicHeightStep * 6 * 0.9
+            BasicRhythmicLength.HALF, BasicRhythmicLength.WHOLE -> verticalMusicHeightStep * 4/3.0
+        }
     }
 
     /**
@@ -245,16 +287,22 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                 val intervalWidth : Double = noteAreaWidth * calculateWidthPercent(interval, subGroup, voice.timeSignature)
                 val intervalWidthMinusOnePadding = noteAreaWidth * calculateWidthPercentMinusOnePadding(interval, subGroup, voice.timeSignature)
 
+                // Decide between visualization as interval with or without horizontal connection to successive intervals.
                 if (connectedIntervalCount == 0){
                     intervalConnectionGroup = null
+                    // Connections can only exist within a subgroup.
                     if (subGroup.connectedIntervals.isNotEmpty()) {
+                        // Check if interval is part of any connection group.
                         for (intervalGroup in subGroup.connectedIntervals){
                             if (intervalGroup.contains(interval)) {
                                 intervalConnectionGroup = intervalGroup
                                 break
                             }
                         }
-
+                        // First interval of connection group that was found (connectedIntervalCount != 0 otherwise)
+                        // Visualize as connected interval and set connectedIntervalCount to also visualize following of
+                        // connection group as such. The height of their stems is determined by their common connectionGroupExtremumHeight
+                        // (musical height), to achieve common horizontal connection on same vertical height.
                         if (intervalConnectionGroup != null){
 
                             if (intervalConnectionGroup.size == 1){
@@ -299,6 +347,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                     }
                 }
                 else {
+                    // Last of connection group doesn't need connection to next interval.
                     val isLast = connectedIntervalCount == 1
                     if (intervalConnectionGroup == null){
                         throw IllegalStateException("IntervalConnectionGroup is null even though not all intervals of the group were visualized, according to connectedIntervalCount.")
@@ -310,14 +359,20 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                 // Increase horizontal margin according to rhythmic interval length
                 horizontalMargin += intervalWidth
             }
+            // Set horizontal margins of voice BarEditingOverlayLayout via callback.
             editingOverlayCallback?.invoke(horizontalMargins, voicePair.key)
         }
 
+        // Set horizontal margins of voice BarEditingOverlayLayout via callback for voices without intervals.
         for (voiceNum in nonVisualizedVoiceNums){
             editingOverlayCallback?.invoke(mutableListOf(), voiceNum)
         }
     }
 
+    /**
+     * Calculates which kind of double stroke connection an [interval] should have to the next one of its [connectionGroup],
+     * depending on their [RhythmicLength]s.
+     */
     private fun calculateIntervalDoubleConnectionType(interval: RhythmicInterval, connectionGroup: MutableList<RhythmicInterval>) : IntervalDoubleConnectionType {
         val intervalIdx = connectionGroup.indexOf(interval)
         if (intervalIdx == -1){
@@ -326,6 +381,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
 
         val intervalDoubleConnectionType : IntervalDoubleConnectionType
 
+        // Last one doesn't need a connection to next.
         if (intervalIdx == connectionGroup.size - 1){
             intervalDoubleConnectionType = IntervalDoubleConnectionType.NONE
         }
@@ -385,31 +441,11 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         return intervalDoubleConnectionType
     }
 
-    private fun calculateIntervalConnectionToBottomMargin(connectedIntervals: MutableList<RhythmicInterval>, stemDirection: StemDirection) : Int{
-        if (stemDirection == StemDirection.UP){
-            var maxMusicHeight = -1
-            for (interval in connectedIntervals){
-                val localMaxMusicHeight = interval.getNoteHeadsCopy().keys.maxOrNull() ?: throw IllegalStateException("An interval without note heads is a rest, which shouldn't have connections!")
-                if (localMaxMusicHeight >= maxMusicHeight) {
-                    maxMusicHeight = localMaxMusicHeight
-                }
-            }
-            return (smallestMusicHeightToBottomMargin + maxMusicHeight * verticalMusicHeightStep +
-                    noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2)).toInt()
-        }
-        else {
-            var minMusicHeight = 13
-            for (interval in connectedIntervals){
-                val localMinMusicHeight : Int = interval.getNoteHeadsCopy().keys.minOrNull() ?: throw IllegalStateException("An interval without note heads is a rest, which shouldn't have connections!")
-                if (localMinMusicHeight <= minMusicHeight){
-                    minMusicHeight = localMinMusicHeight
-                }
-            }
-            return (smallestMusicHeightToBottomMargin + (minMusicHeight + 2) * verticalMusicHeightStep -
-                    noteHeightFromNodeHeadHeight(BasicRhythmicLength.QUARTER, verticalMusicHeightStep * 2)).toInt()
-        }
-    }
-
+    /**
+     * Visualizes an [interval] as connected one, with stem facing in [subGroupDirection], constrained to bar left according to [horizontalMargin],
+     * connection lengths according to [intervalWidth], stem height according to [connectionGroupExtremumHeight] (musical height), no connection if [isLast],
+     * and the double stroke connection according to [intervalDoubleConnectionType].
+     */
     private fun visualizeConnectedInterval(interval: RhythmicInterval, subGroupDirection: StemDirection, horizontalMargin: Int, intervalWidth: Double, connectionGroupExtremumHeight: Int, isLast: Boolean, intervalDoubleConnectionType: IntervalDoubleConnectionType){
 
         // Sort musical note heights of interval, so first will be the one displayed as note with proper stem.
@@ -427,7 +463,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         }
         val isDotted = intervalLength.lengthModifier == LengthModifier.DOTTED
 
-        // Visualize remaining notes as note heads.
+
         var lastNoteHeadView : NoteView? = null
         var firstNoteHeadType : NoteHeadType? = null
         var nextIsMirrored : Boolean? = null
@@ -442,9 +478,9 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                 firstNoteHeadType = noteHeadType
             }
             isMirrored = nextIsMirrored ?: false
+
             // If two notes are on successive heights, they would overlap. Therefore, one of them needs to be mirrored with the common
             // stem as axis.
-
             if (i + 1 < sortedMusicalNoteHeights.size) {
                 val nextMusicHeight = sortedMusicalNoteHeights[i + 1]
                 if (kotlin.math.abs(nextMusicHeight - musicalNoteHeadHeight) == 1) {
@@ -470,6 +506,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                 }
             }
             addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin)
+            // Add dot view if it's dotted.
             if (isDotted) {
                 if (subGroupDirection == StemDirection.DOWN && !isMirrored) {
                     createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, false)
@@ -501,10 +538,15 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         }
     }
 
+    /**
+     * Creates single or double stroke horizontal connection, according to [doubleConnectionType], to a next interval using specified [intervalWidth],
+     * and constrains it to top or bottom of [currentIntervalStemView], according to [subGroupDirection].
+     */
     private fun addConnectionToNextInterval(currentIntervalStemView: ImageView, intervalWidth: Double, subGroupDirection: StemDirection, doubleConnectionType: IntervalDoubleConnectionType){
         val connectionStrokeWidth = noteStemWidth * 2
         val connectionWidth = intervalWidth.toInt()
 
+        // Create and constrain single stroke connection view.
         val connectionView = ImageView(context)
         connectionView.id = View.generateViewId()
         connectionView.scaleType = ImageView.ScaleType.FIT_XY
@@ -523,6 +565,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         }
         constraintSet.applyTo(this)
 
+        // Create and constrain one of the possible double connection stroke views.
         if (doubleConnectionType != IntervalDoubleConnectionType.NONE) {
 
             val secondConnectionView = ImageView(context)
@@ -573,6 +616,10 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         }
     }
 
+    /**
+     * Visualizes an [interval] as unconnected one, with stem facing in [subGroupDirection], constrained to bar left according to [horizontalMargin],
+     * positioning of rests according to [intervalWidthMinusOnePadding] and average note height in [voice].
+     */
     private fun visualizeUnconnectedInterval(interval: RhythmicInterval, intervalWidthMinusOnePadding: Double, subGroupDirection: StemDirection, voice: Voice, horizontalMargin: Int){
         val intervalLength = interval.getLengthCopy()
         val isWhole = intervalLength.basicLength == BasicRhythmicLength.WHOLE
@@ -641,6 +688,7 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
                         }
                     }
                     addNoteView(lastNoteHeadView, musicalNoteHeadHeight, subGroupDirection, adaptedHorizontalMargin)
+                    // Add dote view if dotted.
                     if (isDotted) {
                         if (subGroupDirection == StemDirection.DOWN && !isMirrored) {
                             createConstrainedNoteDotView(lastNoteHeadView, subGroupDirection, isWhole)
@@ -770,18 +818,6 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         return dotView
     }
 
-    private fun getNoteHeadWidth(type: NoteHeadType, basicLength: BasicRhythmicLength) : Int{
-        return when (type){
-            NoteHeadType.ELLIPTIC -> {
-                if (basicLength != BasicRhythmicLength.WHOLE) noteHeadWidthForNonWholes
-                else noteWidthFromHeight(BasicRhythmicLength.WHOLE, noteHeadHeight.toDouble(), type).toInt()
-            }
-            NoteHeadType.CROSS -> {
-                noteHeadHeight
-            }
-        }
-    }
-
     /**
      * Creates and returns note head view with id potentially mirrored along y-axis.
       */
@@ -812,15 +848,6 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
 
         return noteHeadView
     }
-
-    private fun getRestHeight(basicLength: BasicRhythmicLength) : Double{
-        return when (basicLength){
-            BasicRhythmicLength.EIGHTH -> verticalMusicHeightStep * 4 * 0.9
-            BasicRhythmicLength.SIXTEENTH, BasicRhythmicLength.QUARTER -> verticalMusicHeightStep * 6 * 0.9
-            BasicRhythmicLength.HALF, BasicRhythmicLength.WHOLE -> verticalMusicHeightStep * 4/3.0
-        }
-    }
-
     /**
      * Creates and returns a specific rest view, based on its [RhythmicLength], with id.
      */
@@ -1095,11 +1122,17 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         constraintSet.applyTo(this)
     }
 
+    /**
+     * Adds stem to an interval visualized as connected, facing in [stemDirection], constrained to left or right of [startNoteHeadView] according to [isMirrored].
+     * Stem height calculated from difference between [startMusicHeight] and [connectionGroupExtremumHeight], so all the stems of a group of connected intervals
+     * line up at the bottom / top.
+     */
     private fun addMultiNoteStemForConnection(stemDirection: StemDirection, startNoteHeadView: NoteView, startMusicHeight: Int, connectionGroupExtremumHeight: Int, isMirrored: Boolean) : ImageView{
         val multiNoteStemView = ImageView(context)
         multiNoteStemView.id = View.generateViewId()
         multiNoteStemView.scaleType = ImageView.ScaleType.FIT_XY
 
+        // Calculate stem height.
         val heightDifferenceToExtremum = verticalMusicHeightStep * when (stemDirection){
             StemDirection.UP -> {
                 connectionGroupExtremumHeight - startMusicHeight
@@ -1161,6 +1194,12 @@ class BarVisLayout(context: Context, private val barHeight: Int, initBar: Bar) :
         return intervalPercentWithoutPadding + subGroupPaddingPercent
     }
 
+    /**
+     * Calculates the percentage of note area width an [interval] of a certain [RhythmicLength] should take up, based
+     * on the amount of time units in the [timeSignature] and if [interval] is the rhythmically last of [subGroup] (not sorted),
+     * which will get one or multiple "between subgroups" padding. Here, one padding is removed if one or more were included,
+     * so that rests can be centered in perceived interval widths, i.e. without this padding.
+     */
     private fun calculateWidthPercentMinusOnePadding(interval: RhythmicInterval, subGroup: SubGroup, timeSignature: TimeSignature): Double {
         val notesPercentWithoutPadding = 1 - (timeSignature.numberOfSubGroups - 1) * WIDTH_OF_ONE_SUBGROUP_PADDING_PERCENT
         val intervalPercentWithoutPadding = notesPercentWithoutPadding * interval.getLengthCopy().lengthInUnits / timeSignature.units

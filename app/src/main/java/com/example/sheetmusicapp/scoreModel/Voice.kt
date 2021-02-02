@@ -30,6 +30,7 @@ class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: Ti
 
     private lateinit var subGroups: List<SubGroup>
     private val intervalSubGroupIdxs: MutableMap<RhythmicInterval, Int> = mutableMapOf()
+    // Can be set by the containing bar.
     var stemDirection : StemDirection? = null
 
     init {
@@ -47,6 +48,10 @@ class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: Ti
         return intervalSubGroupIdxs.toMutableMap()
     }
 
+    /**
+     * Sorts all contained intervals in their subgroups, created according to [timeSignature].
+     * Also creates the according inverse mapping for [intervalSubGroupIdxs].
+     */
     fun initializeSubGroups(){
         // Sub group initialization //
         val subGroupEndUnits = timeSignature.subGroupEndUnits
@@ -209,6 +214,9 @@ class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: Ti
         else throw IllegalStateException("The interval at the given idx is not part of a subgroup!")
     }
 
+    /**
+     * Returns true if the voice only contains rests, false otherwise.
+     */
     fun isVoiceOfRests() : Boolean {
         return getAvgNoteHeight() == null
     }
@@ -226,6 +234,8 @@ class Voice (val intervals: MutableList<RhythmicInterval>, var timeSignature: Ti
  * @property paddingFactor Specifies how many times the width of a padding between subgroups should be added
  * to the musical length-based UI width of the last interval of the sub group when calculating note
  * positions iteratively. Is calculated by the [Voice] a sub group is part of.
+ * @property connectedIntervals Lists of intervals which should be connected horizontally when visualized, from
+ * [calculateConnectedIntervals]
  * @throws IllegalArgumentException When a given interval exceeds the given [startUnit] or [endUnit].
  */
 class SubGroup (private val intervals: MutableList<RhythmicInterval>, private val startUnit: Int, private val endUnit: Int) : Serializable{
@@ -333,11 +343,21 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
         return interval == lastInterval
     }
 
+    /**
+     * Creates lists of contained intervals which should be connected horizontally, depending
+     * on which rhythmic lengths follow after another when the intervals are ordered by end unit.
+     * Lists which only contain one interval which could potentially connected will be dismissed,
+     * only at least two intervals can be connected.
+     */
     fun calculateConnectedIntervals(){
         connectedIntervals.clear()
         var newConnectedList = mutableListOf<RhythmicInterval>()
         val sortedIntervals = intervals.sortedBy { it.endUnit }
+
+        // Iterate over intervals and compare with previous / successive intervals.
         for (interval in sortedIntervals){
+
+            // Rests do not have connections.
             if (interval.isRest){
                 if (newConnectedList.isNotEmpty()){
                     if (newConnectedList.size > 1){
@@ -348,6 +368,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
             }
             else {
                 val length = interval.getLengthCopy()
+                // 8ths and 16ths are potentially connected to following intervals
                 if (newConnectedList.isEmpty()) {
                     if (length.basicLength in listOf(BasicRhythmicLength.EIGHTH, BasicRhythmicLength.SIXTEENTH)) {
                         newConnectedList.add(interval)
@@ -355,7 +376,9 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                 } else {
                     val lastConnectedLength = newConnectedList.last().getLengthCopy()
                     when (lastConnectedLength.lengthInUnits) {
+
                         RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits ->
+                            // 8ths and 16ths should be connected to previous 8ths
                             if (length.lengthInUnits in listOf(RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits, RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits)) {
                                 newConnectedList.add(interval)
                             } else {
@@ -364,7 +387,9 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                                 }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
                             }
+
                         RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED).lengthInUnits ->
+                            // 16ths should be connected to previous dotted 8ths
                             if (length.lengthInUnits == RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits) {
                                 newConnectedList.add(interval)
                             } else {
@@ -373,7 +398,9 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                                 }
                                 newConnectedList = mutableListOf<RhythmicInterval>()
                             }
+
                         RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits ->
+                            // 8ths, dotted 8ths and 16ths should be connected to previous 16ths
                             if (length.lengthInUnits in listOf(RhythmicLength(BasicRhythmicLength.EIGHTH).lengthInUnits,
                                             RhythmicLength(BasicRhythmicLength.SIXTEENTH).lengthInUnits,
                                             RhythmicLength(BasicRhythmicLength.EIGHTH, LengthModifier.DOTTED))) {
@@ -388,7 +415,7 @@ class SubGroup (private val intervals: MutableList<RhythmicInterval>, private va
                 }
             }
         }
-
+        // Add potential list after all intervals have been seen.
         if (newConnectedList.size > 1){
             connectedIntervals.add(newConnectedList)
         }
